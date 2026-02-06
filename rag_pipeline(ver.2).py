@@ -1,0 +1,118 @@
+# FILE: rag_service.py
+import os
+import requests
+import psycopg2
+from dotenv import load_dotenv
+from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+from typing import List
+from asda_scraper import get_asda_price # Import your scraper
+
+# 1. SETUP & CONFIGURATION
+load_dotenv()
+# Ensure your .env file has: SUPABASE_URL="postgresql://..."
+SUPABASE_URI = os.getenv("SUPABASE_URL") 
+if not SUPABASE_URI:
+    # Fallback if using direct script (replace with your real string)
+    SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:PASSWORD!@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+
+embeddings = OllamaEmbeddings(model="nomic-embed-text")
+llm = ChatOllama(model="llama3", temperature=0)
+
+# 2. DEFINE THE OUTPUT STRUCTURE (The Bridge)
+class RecipePlan(BaseModel):
+    dish_name: str = Field(description="Name of the recipe")
+    ingredients: List[str] = Field(description="List of main ingredients (max 5)")
+    instructions: str = Field(description="Brief cooking instructions")
+
+parser = PydanticOutputParser(pydantic_object=RecipePlan)
+
+# 3. DYNAMIC INGESTION (TheMealDB -> Supabase)
+def ingest_spaghetti_data():
+    print("Fetching spaghetti data from TheMealDB...")
+    # Search for 'Spaghetti' specifically
+    url = "https://www.themealdb.com/api/json/v1/1/search.php?s=spaghetti"
+    data = requests.get(url).json()
+    
+    conn = psycopg2.connect(SUPABASE_URI)
+    cur = conn.cursor()
+    cur.execute("TRUNCATE TABLE items;") # Clear old test data
+
+    count = 0
+    if data["meals"]:
+        for meal in data["meals"]:
+            # Format recipe into a single text block
+            ingredients = []
+            for i in range(1, 10): # Grab first 10 ingredients
+                ing = meal.get(f"strIngredient{i}")
+                if ing and ing.strip():
+                    ingredients.append(ing)
+            
+            content_block = f"""
+            Recipe: {meal['strMeal']}
+            Category: {meal['strCategory']}
+            Ingredients: {', '.join(ingredients)}
+            Instructions: {meal['strInstructions'][:500]}...
+            """
+            
+            # Embed and Save
+            vector = embeddings.embed_query(content_block)
+            cur.execute("INSERT INTO items (content, embedding) VALUES (%s, %s)", (content_block, vector))
+            count += 1
+            
+    conn.commit()
+    cur.close()
+    conn.close()
+    print(f"Ingested {count} spaghetti recipes into Supabase.")
+
+# 4. EXECUTE THE PIPELINE
+def run_chat_agent(user_query):
+    # Step A: Ingest Data (Simulating a fresh start)
+    ingest_spaghetti_data()
+    
+    # Step B: RAG Retrieval
+    query_vector = embeddings.embed_query(user_query)
+    
+    conn = psycopg2.connect(SUPABASE_URI)
+    cur = conn.cursor()
+    cur.execute("SELECT content FROM items ORDER BY embedding <-> %s::vector LIMIT 1", (query_vector,))
+    result = cur.fetchone()
+    conn.close()
+    
+    if not result:
+        print("No recipe found.")
+        return
+
+    context_text = result[0]
+    
+    # Step C: LLM Processing (Extract Ingredients)
+    print("\nAnalyzing recipe...")
+    prompt = PromptTemplate(
+        template="Extract the recipe details from the context.\n{format_instructions}\nContext: {context}",
+        input_variables=["context"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+    
+    chain = prompt | llm | parser
+    recipe_obj = chain.invoke({"context": context_text})
+    
+    # Step D: Display & Live Track
+    print(f"\nDISH: {recipe_obj.dish_name}")
+    print(f"INSTRUCTIONS: {recipe_obj.instructions[:100]}...")
+    print("-" * 40)
+    print("CHECKING LIVE STOCK AT ASDA...")
+    
+    for ingredient in recipe_obj.ingredients:
+        # Call the scraper tool!
+        asda_data = get_asda_price(ingredient)
+        
+        if asda_data:
+            print(f"{ingredient}: Found '{asda_data['name']}' - {asda_data['price']} ({asda_data['status']})")
+        else:
+            print(f"{ingredient}: Not found or check failed.")
+
+# RUN IT
+if __name__ == "__main__":
+    run_chat_agent("How do I make spaghetti?")
