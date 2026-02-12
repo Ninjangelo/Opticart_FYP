@@ -14,7 +14,7 @@ from asda_scraper import get_asda_price
 
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
-SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:Longganisa143!@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:[INSERT_PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
 
