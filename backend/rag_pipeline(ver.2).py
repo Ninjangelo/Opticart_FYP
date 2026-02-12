@@ -13,13 +13,25 @@ from typing import List
 from asda_scraper import get_asda_price
 
 
-# 1. SETUP & CONFIGURATION
-SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:[insert_password]@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
+SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:Longganisa143!@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
 
+# ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
+
+
+# ------------------------------ MODEL INITIALIZATION ------------------------------
+"""
+---------- Model(s) Information ----------
+EMBEDDINGS MODEL: nomic-embed-text
+CHAT MODEL: Llama 3
+"""
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 llm = ChatOllama(model="llama3", temperature=0)
 
-# 2. DEFINE THE OUTPUT STRUCTURE (The Bridge)
+# ------------------------------ MODEL INITIALIZATION ------------------------------
+
+
+# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
 class RecipePlan(BaseModel):
     dish_name: str = Field(description="Name of the recipe")
     ingredients: List[str] = Field(description="List of main ingredients (max 5)")
@@ -27,13 +39,21 @@ class RecipePlan(BaseModel):
 
 parser = PydanticOutputParser(pydantic_object=RecipePlan)
 
-# 3. DYNAMIC INGESTION (TheMealDB -> Supabase)
+# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
+
+
+# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
+"""
+Temporarily using spaghetti as a test for testing the behaviour of the RAG pipeline overall.
+
+"""
 def ingest_spaghetti_data():
     print("Fetching spaghetti data from TheMealDB...")
-    # Search for 'Spaghetti' specifically
-    url = "https://www.themealdb.com/api/json/v1/1/search.php?s=spaghetti"
+    # Search for 'spaghetti bolognese' specifically
+    url = "https://www.themealdb.com/api/json/v1/1/search.php?s=spaghetti+bolognese"
     data = requests.get(url).json()
     
+    # Supabase DB Connection
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
     # Clear out items Table
@@ -66,12 +86,15 @@ def ingest_spaghetti_data():
     conn.close()
     print(f"Ingested {count} spaghetti recipes into Supabase.")
 
-# 4. EXECUTE THE PIPELINE
+# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
+
+
+# ------------------------------ PIPELINE EXECUTION ------------------------------
 def run_chat_agent(user_query):
-    # Step A: Ingest Data (Simulating a fresh start)
+    # TheMealDB Data Ingestion (Spaghetti Bolognese for testing)
     ingest_spaghetti_data()
     
-    # Step B: RAG Retrieval
+    # RAG Retrieval
     query_vector = embeddings.embed_query(user_query)
     
     conn = psycopg2.connect(SUPABASE_URI)
@@ -80,6 +103,7 @@ def run_chat_agent(user_query):
     result = cur.fetchone()
     conn.close()
     
+    # If recipe not found
     if not result:
         print("No recipe found.")
         return
@@ -104,7 +128,7 @@ def run_chat_agent(user_query):
     print("CHECKING LIVE STOCK AT ASDA...")
     
     for ingredient in recipe_obj.ingredients:
-        # Call the scraper tool!
+        # ASDA scraper
         asda_data = get_asda_price(ingredient)
         
         if asda_data:
@@ -112,6 +136,8 @@ def run_chat_agent(user_query):
         else:
             print(f"{ingredient}: Not found or check failed.")
 
-# RUN IT
+# ------------------------------ PIPELINE EXECUTION ------------------------------
+
+
 if __name__ == "__main__":
     run_chat_agent("How do I make spaghetti?")

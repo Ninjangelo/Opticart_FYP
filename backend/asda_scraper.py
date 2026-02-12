@@ -1,9 +1,9 @@
 from playwright.sync_api import sync_playwright
 
-# PRODUCT SEARCH FUNCTION
+# Product Search
 def get_asda_price(product_name):
 
-    print(f"🛒 Live-tracking '{product_name}' at Asda...")
+    print(f"Live-tracking '{product_name}' at Asda...")
     
     with sync_playwright() as p:
         # Running ghost browser
@@ -11,22 +11,23 @@ def get_asda_price(product_name):
         page = browser.new_page()
         
         try:
-            # 1. Search Asda
-            # We inject the product name directly into the URL
+            # Search Asda
+            # Product name injected directly into the URL
             url = f"https://groceries.asda.com/search/{product_name}"
-            page.goto(url, timeout=15000) # 15s timeout
+            # 15 second timeout
+            page.goto(url, timeout=15000)
             
-            # 2. Wait for product list to load
+            # Product Listings Loading
             page.wait_for_selector(".co-product-list__main-cntr", timeout=10000)
             
-            # 3. Scrape the first item found
+            # Scraping the first item loaded
             first_item = page.query_selector(".co-item")
             
             if first_item:
                 title = first_item.query_selector(".co-product__title").inner_text()
                 price = first_item.query_selector(".co-product__price").inner_text()
                 
-                # Check stock status
+                # Checking stock status
                 out_of_stock = first_item.query_selector(".co-product__out-of-stock")
                 status = "Out of Stock" if out_of_stock else "In Stock"
                 
@@ -34,8 +35,7 @@ def get_asda_price(product_name):
                 return {"name": title, "price": price, "status": status}
             
         except Exception as e:
-            # If search fails or times out, return None
-            # print(f"Scraping error: {e}") 
+            # Return None if search fails or times out
             pass
             
         browser.close()
