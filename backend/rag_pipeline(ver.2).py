@@ -14,7 +14,12 @@ from asda_scraper import get_asda_price
 
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
-SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:[INSERT_PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+load_dotenv()
+SUPABASE_URI = os.getenv("DATABASE_URL")
+
+# Test if DATABASE_URI is not found in .env file
+if not SUPABASE_URI:
+    raise ValueError()
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
 
