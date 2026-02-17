@@ -4,6 +4,7 @@ import './App.css'
 /* COMPONENT IMPORTS */
 import HomeNavbar from './components/home_navbar.jsx';
 import HeroButtons from './components/hero_buttons.jsx';
+import HomeFooter from './components/home_footer.jsx';
 
 function App() {
 
@@ -16,12 +17,13 @@ function App() {
   return (
     <>
       <HomeNavbar />
-      <div className="flex flex-col px-30 pt-22 pb-54 text-center items-center justify-center space-y-8">
+      <div className="flex flex-col px-30 pt-22 pb-39 text-center items-center justify-center space-y-8">
         <img className="w-45" src="/temporary_logo.svg" alt="opticart_logo"/>
         <h1 className="text-7xl text-temporary-turqoise font-montserrat">Opticart</h1>
         <p className="text-2xl text-temporary-turqoise2 font-manrope">Budget-friendly meal planning made easy</p>
         <HeroButtons />
       </div>
+      <HomeFooter />
     </>
   )
 }
