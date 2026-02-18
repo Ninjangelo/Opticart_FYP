@@ -1,48 +1,25 @@
-# IMPORTS
+
 import os
+import requests
 import psycopg2
-import numpy as np
-import hashlib
-from langchain_huggingface import HuggingFaceEmbeddings
+from dotenv import load_dotenv
 from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pathlib import Path
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from pydantic import BaseModel, Field
+from typing import List
 
-# ------------------------------ TEMPORARY DATA FOR TESTING CHAT RESPONSES ------------------------------
-
-# -------------------- SAMPLE TEST DATA (computer-related) --------------------
-"""
-texts = [
-    "Type: Desktop, OS: Ubuntu, GPU: NVIDIA, CPU: AMD, RAM: 64GB, SSD: 2TB",
-    "Type: Desktop, OS: Linux Mint, GPU: NVIDIA, CPU: AMD, RAM: 64GB, SSD: 2TB",
-    "Type: Desktop, OS: Manjaro, GPU: NVIDIA, CPU: AMD, RAM: 64GB, SSD: 2TB",
-    "Type: Desktop, OS: Windows, GPU: NVIDIA, CPU: AMD, RAM: 64GB, SSD: 2TB",
-    "Type: Desktop, OS: Windows, GPU: NVIDIA, CPU: Intel, RAM: 32GB, SSD: 1TB",
-    "Type: Desktop, OS: Fedora, GPU: AMD, CPU: AMD, Intel: 16GB, SSD: 1TB",
-    "Type: Desktop, OS: Windows, GPU: NVIDIA, CPU: AMD, RAM: 16GB, SSD: 2TB",
-    "Type: Desktop, OS: Windows, GPU: AMD, CPU: AMD, RAM: 16GB, SSD: 1TB",
-    "Type: Desktop, OS: Ubuntu, GPU: NVIDIA, CPU: AMD, RAM: 32GB, SSD: 1TB",
-    "Type: Laptop, OS: Windows, GPU: NVIDIA, CPU: Intel, RAM: 16GB, SSD: 1TB",
-    "Type: Laptop, OS: Ubuntu, GPU: AMD, CPU: AMD, RAM: 16GB, SSD: 500GB",
-    "Type: Laptop, OS: Mac OS, GPU: NVIDIA, CPU: AMD, RAM: 16GB, SSD: 1TB",
-]
-"""
-
-# -------------------- SAMPLE TEST DATA (apples) --------------------
-texts = [
-    "My computer was made by Apple",
-    "My favorite fruit is Apple",
-    "My Adam's Apple hurts",
-    "My knee seems odd today",
-    "My laptop is running on Arch Linux",
-    "My breakfast usually includes berries",
-]
-# ------------------------------ TEMPORARY DATA FOR TESTING CHAT RESPONSES ------------------------------
+# Scraper
+from asda_scraper import get_asda_price
 
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
-SUPABASE_URI = "postgresql://postgres.yucenclxbyzfrmgsdotd:[PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require"
+load_dotenv()
+SUPABASE_URI = os.getenv("DATABASE_URL")
+
+# Test if DATABASE_URI is not found in .env file
+if not SUPABASE_URI:
+    raise ValueError()
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
 
@@ -54,87 +31,123 @@ EMBEDDINGS MODEL: nomic-embed-text
 CHAT MODEL: Llama 3
 """
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
-llm = ChatOllama(model="llama3")
+llm = ChatOllama(model="llama3", temperature=0)
 
-# Appending generated embeddings to embeddings_list
-embeddings_list = []
-for text in texts:
-    embeddings_list.append(embeddings.embed_query(text))
+# ------------------------------ MODEL INITIALIZATION ------------------------------
 
-# Database Ingestion
-try:
+
+# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
+class RecipePlan(BaseModel):
+    dish_name: str = Field(description="Name of the recipe")
+    ingredients: List[str] = Field(description="List of main ingredients (max 5)")
+    instructions: str = Field(description="Brief cooking instructions")
+
+parser = PydanticOutputParser(pydantic_object=RecipePlan)
+
+# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
+
+
+# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
+"""
+Temporarily using spaghetti as a test for testing the behaviour of the RAG pipeline overall.
+
+"""
+def ingest_spaghetti_data():
+    print("Fetching spaghetti data from TheMealDB...")
+    # Search for 'spaghetti bolognese' specifically
+    url = "https://www.themealdb.com/api/json/v1/1/search.php?s=spaghetti+bolognese"
+    data = requests.get(url).json()
+    
+    # Supabase DB Connection
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
-
-    # Clear out the items Table
+    # Clear out items Table
     cur.execute("TRUNCATE TABLE items;")
 
-    # Inserting Original Texts and their Embeddings as Tuples in the items Table
-    for i in range(len(embeddings_list)):
-        embedding = embeddings_list[i]
-        content = texts[i]
-        cur.execute(
-            "INSERT INTO items (content, embedding) VALUES (%s, %s)", 
-            (content, embedding)
-        )
-
+    count = 0
+    if data["meals"]:
+        for meal in data["meals"]:
+            # Format recipe into a single text block
+            ingredients = []
+            for i in range(1, 10): # Grab first 10 ingredients
+                ing = meal.get(f"strIngredient{i}")
+                if ing and ing.strip():
+                    ingredients.append(ing)
+            
+            content_block = f"""
+            Recipe: {meal['strMeal']}
+            Category: {meal['strCategory']}
+            Ingredients: {', '.join(ingredients)}
+            Instructions: {meal['strInstructions'][:500]}...
+            """
+            
+            # Embed and Save
+            vector = embeddings.embed_query(content_block)
+            cur.execute("INSERT INTO items (content, embedding) VALUES (%s, %s)", (content_block, vector))
+            count += 1
+            
     conn.commit()
     cur.close()
     conn.close()
-except Exception as e:
-    print(f"Database Ingestion Error occurred: {e}")
-    exit()
+    print(f"Ingested {count} spaghetti recipes into Supabase.")
+
+# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
 
 
-# QUERY NO.1
-#new_text = "Type: Desktop, OS: Arch Linux, GPU: NVIDIA, CPU: AMD, RAM: 64GB, SSD: 2TB"
-#QUERY NO.2
-new_text = "My dinner would benefit from adding Apples to it"
-print(f"\nUser Question: {new_text}")
-new_embedding = embeddings.embed_query(new_text)
-
-# Re-connect to Database for retrieval
-try:
+# ------------------------------ PIPELINE EXECUTION ------------------------------
+def run_chat_agent(user_query):
+    # TheMealDB Data Ingestion (Spaghetti Bolognese for testing)
+    #ingest_spaghetti_data()
+    
+    # RAG Retrieval
+    query_vector = embeddings.embed_query(user_query)
+    
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
-
-    cur.execute("""SELECT content
-        FROM items
-        ORDER BY embedding <-> %s::vector
-        LIMIT 5 
-    """, (new_embedding,))
-
-    results = cur.fetchall()
+    cur.execute("SELECT content FROM items ORDER BY embedding <-> %s::vector LIMIT 1", (query_vector,))
+    result = cur.fetchone()
     conn.close()
+    
+    # If recipe not found
+    if not result:
+        return {"error": "No recipe found matching your criteria."}
 
-    retrieved_context = "\n".join([row[0] for row in results])
+    context_text = result[0]
+    
+    # Step C: LLM Processing (Extract Ingredients)
+    print("\nAnalyzing recipe...")
+    prompt = PromptTemplate(
+        template="Extract the recipe details from the context.\n{format_instructions}\nContext: {context}",
+        input_variables=["context"],
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+    
+    chain = prompt | llm | parser
+    recipe_obj = chain.invoke({"context": context_text})
+    
+    # Data Scraping
+    print("CHECKING LIVE STOCK AT ASDA...")
+    scraped_ingredients = []
+    
+    for ingredient in recipe_obj.ingredients:
+        # ASDA scraper
+        asda_data = get_asda_price(ingredient)
+        
+        # Add to list
+        scraped_ingredients.append({
+            "name": ingredient,
+            "supermarket_data": asda_data # Returns dict or None
+        })
 
-    print(f"\n--- DB found these facts ---\n{retrieved_context}\n----------------------------------")
+    # 4. RETURN DATA (Crucial for FastAPI)
+    return {
+        "dish_name": recipe_obj.dish_name,
+        "instructions": recipe_obj.instructions,
+        "ingredients": scraped_ingredients
+    }
 
-    # GENERATING RESPONSE
-    prompt = f"""
-    You are a helpful assistant. Answer the user's question using ONLY the context provided below.
+# ------------------------------ PIPELINE EXECUTION ------------------------------
 
-    Context:
-    {retrieved_context}
-
-    Question:
-    {new_text}
-    """
-
-    print("Llama is thinking...\n")
-
-    # WAITING FOR RESPONSE GENERATION
-    """
-    response = llm.invoke(prompt)
-    print(f"\nLlama Response:\n{response.content}")
-    """
-
-    print("\nLlama Response:")
-    for chunk in llm.stream(prompt):
-        print(chunk.content, end="", flush=True)
-
-    print("\n")
-except Exception as e: 
-    print(f"Retrieval Error: {e}")
-
+if __name__ == "__main__":
+    # Test locally
+    print(run_chat_agent("How do I make spaghetti?"))
