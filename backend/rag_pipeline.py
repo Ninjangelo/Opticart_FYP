@@ -61,8 +61,9 @@ def ingest_spaghetti_data():
     # Supabase DB Connection
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
+
     # Clear out items Table
-    cur.execute("TRUNCATE TABLE items;")
+    cur.execute("TRUNCATE TABLE recipes;")
 
     count = 0
     if data["meals"]:
@@ -83,7 +84,7 @@ def ingest_spaghetti_data():
             
             # Embed and Save
             vector = embeddings.embed_query(content_block)
-            cur.execute("INSERT INTO items (content, embedding) VALUES (%s, %s)", (content_block, vector))
+            cur.execute("INSERT INTO recipes (content, embedding) VALUES (%s, %s)", (content_block, vector))
             count += 1
             
     conn.commit()
@@ -97,14 +98,14 @@ def ingest_spaghetti_data():
 # ------------------------------ PIPELINE EXECUTION ------------------------------
 def run_chat_agent(user_query):
     # TheMealDB Data Ingestion (Spaghetti Bolognese for testing)
-    #ingest_spaghetti_data()
+    ingest_spaghetti_data()
     
     # RAG Retrieval
     query_vector = embeddings.embed_query(user_query)
     
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
-    cur.execute("SELECT content FROM items ORDER BY embedding <-> %s::vector LIMIT 1", (query_vector,))
+    cur.execute("SELECT content FROM recipes ORDER BY embedding <-> %s::vector LIMIT 1", (query_vector,))
     result = cur.fetchone()
     conn.close()
     
