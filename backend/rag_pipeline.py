@@ -47,58 +47,8 @@ parser = PydanticOutputParser(pydantic_object=RecipePlan)
 # ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
 
 
-# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
-"""
-Temporarily using spaghetti as a test for testing the behaviour of the RAG pipeline overall.
-
-"""
-def ingest_spaghetti_data():
-    print("Fetching spaghetti data from TheMealDB...")
-    # Search for 'spaghetti bolognese' specifically
-    url = "https://www.themealdb.com/api/json/v1/1/search.php?s=spaghetti+bolognese"
-    data = requests.get(url).json()
-    
-    # Supabase DB Connection
-    conn = psycopg2.connect(SUPABASE_URI)
-    cur = conn.cursor()
-
-    # Clear out items Table
-    cur.execute("TRUNCATE TABLE recipes;")
-
-    count = 0
-    if data["meals"]:
-        for meal in data["meals"]:
-            # Format recipe into a single text block
-            ingredients = []
-            for i in range(1, 10): # Grab first 10 ingredients
-                ing = meal.get(f"strIngredient{i}")
-                if ing and ing.strip():
-                    ingredients.append(ing)
-            
-            content_block = f"""
-            Recipe: {meal['strMeal']}
-            Category: {meal['strCategory']}
-            Ingredients: {', '.join(ingredients)}
-            Instructions: {meal['strInstructions'][:500]}...
-            """
-            
-            # Embed and Save
-            vector = embeddings.embed_query(content_block)
-            cur.execute("INSERT INTO recipes (content, embedding) VALUES (%s, %s)", (content_block, vector))
-            count += 1
-            
-    conn.commit()
-    cur.close()
-    conn.close()
-    print(f"Ingested {count} spaghetti recipes into Supabase.")
-
-# ------------------------------ THEMEALDB DATA INGESTION ------------------------------
-
-
 # ------------------------------ PIPELINE EXECUTION ------------------------------
 def run_chat_agent(user_query):
-    # TheMealDB Data Ingestion (Spaghetti Bolognese for testing)
-    ingest_spaghetti_data()
     
     # RAG Retrieval
     query_vector = embeddings.embed_query(user_query)
