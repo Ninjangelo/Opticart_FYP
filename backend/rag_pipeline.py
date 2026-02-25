@@ -1,6 +1,5 @@
 
 import os
-import requests
 import psycopg2
 from dotenv import load_dotenv
 from langchain_ollama import ChatOllama, OllamaEmbeddings

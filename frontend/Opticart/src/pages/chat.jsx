@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from 'react';
-import HomeNavbar from '../components/home_navbar.jsx';
 import './css/chat.css';
 
 /* COMPONENT IMPORTS */
@@ -13,7 +12,7 @@ function Chat() {
 
   return (
     <>
-      <div className='flex flex-row'>
+      <div className='flex flex-row h-screen w-full overflow-hidden bg-gray-50'>
         <Sidebar />
         <ChatWindow />
       </div>
