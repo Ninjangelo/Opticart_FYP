@@ -1,0 +1,6 @@
+# Python Virtual Environment
+venv/
+__pycache__/
+
+# Security: Never commit API keys!
+.env

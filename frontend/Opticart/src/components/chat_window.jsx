@@ -12,7 +12,7 @@ function ChatWindow() {
     { 
       sender: 'ai', 
       type: 'text', 
-      content: 'Hello! I am Opticart. Ask me for a recipe (e.g., "How do I make spaghetti?").' 
+      content: 'Hello! How can Opticart help you today?' 
     }
   ]);
   
@@ -78,6 +78,8 @@ function ChatWindow() {
     }
   };
 
+
+  {/* PAGE CONTENT */}
   return (
     <>
       <div className="flex flex-col w-screen bg-gray-50">

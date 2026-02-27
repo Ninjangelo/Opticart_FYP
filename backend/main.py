@@ -7,12 +7,13 @@ from concurrent.futures import ThreadPoolExecutor
 # IMPORTING RAG PIPELINE
 from rag_pipeline import run_chat_agent
 
+# API Instance
 app = FastAPI()
 
 # THREAD MANAGEMENT
 executor = ThreadPoolExecutor()
 
-# CORS CONFIGURATION
+# CORS CONFIGURATION - Allowing data requests from web app to be made to FastAPI server
 origins = [
     "http://localhost:5173",  # Vite
     "http://localhost:3000",  # Backup Port
@@ -26,22 +27,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# DATA MODELS
+# DATA MODELS - Defines what the frontend can only send as request
 class UserQuery(BaseModel):
     query: str
 
-# API ROUTES
+# ----- API ROUTES -----
+# Health Check
 @app.get("/")
 def read_root():
     return {"status": "Opticart Backend Online"}
 
+# Listener for requests from "/chat"
 @app.post("/chat")
 async def chat_endpoint(request: UserQuery):
-    if not run_chat_agent:
-        raise HTTPException(status_code=500, detail="RAG Pipeline not loaded. Check server logs.")
-
     print(f"Received Query: {request.query}")
 
+    # Running RAG Pipeline 
     try:
         loop = asyncio.get_event_loop()
         
@@ -56,7 +57,8 @@ async def chat_endpoint(request: UserQuery):
              raise HTTPException(status_code=404, detail=response_data["error"])
 
         return response_data
-        
+    
+    # Error raise to application if any processes crash
     except Exception as e:
         print(f"Error processing request: {e}")
         raise HTTPException(status_code=500, detail=str(e))

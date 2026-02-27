@@ -4,7 +4,7 @@ function HomeNavbar() {
 
     return (
         <nav className="grid grid-cols-8 items-center bg-temporary-turqoise px-8 py-4 text-white">
-            <Link to="/" className="flex flex-row items-center space-x-5 font-montserrat text-2xl">
+            <Link to="/" className="flex flex-row items-center space-x-3 font-montserrat text-2xl">
                 <img className="w-12" src="/temporary_logo.svg" alt="opticart_logo"/>
                 <h1>Opticart</h1>
             </Link>
