@@ -85,7 +85,7 @@ function ChatWindow() {
       <div className="flex flex-col w-screen bg-gray-50">
 
       {/* --- CHAT AREA --- */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-32">
+      <div className="flex-1 dark:bg-gray-900 overflow-y-auto p-4 md:p-8 space-y-6 pb-32">
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             
@@ -148,21 +148,21 @@ function ChatWindow() {
       </div>
 
       {/* --- INPUT AREA --- */}
-      <div className="fixed bottom-0 w-full bg-white border-t border-gray-200 p-4">
-        <div className="max-w-4xl mx-auto flex space-x-4">
-          <input 
+      <div className="fixed self-center bottom-7 rounded-4xl bg-sky-950 border-t border-gray-700 p-8">
+        <div className="flex flex-row items-center justify-center space-x-4 w-190">
+          <textarea
             type="text" 
-            className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none focus:border-temporary-turqoise font-manrope text-lg"
-            placeholder="Type a meal (e.g. 'Spaghetti')"
+            className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none bg-gray-600 focus:border-temporary-turqoise font-manrope text-sm field-sizing-content [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-temporary-turqoise [&::-webkit-scrollbar-thumb]:rounded-ful max-h-30 resize-none text-white"
+            placeholder="Ask Opticart..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
             disabled={isLoading}
-          />
+          ></textarea>
           <button 
             onClick={sendMessage} 
             disabled={isLoading}
-            className={`px-8 py-3 rounded-xl font-bold text-white font-montserrat transition-all ${
+            className={`px-5 py-7 rounded-full text-sm font-bold text-white font-montserrat transition-all ${
               isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-temporary-turqoise hover:opacity-90'
             }`}
           >

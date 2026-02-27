@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 function Sidebar() {
 
     return (
-        <div className="w-77 h-full bg-gray-900 text-white flex flex-col flex-shrink-0">
+        <div className="w-105 h-full dark:bg-sky-950 text-white flex flex-col border-r border-gray-700">
             <div className="p-4 border-b border-gray-700">
                 <Link to="/" className="flex flex-row items-center gap-3">
                     <img className="w-10" src="../opticart_logo(inverted).svg" alt="opticart_logo"/>
@@ -11,7 +11,7 @@ function Sidebar() {
                 </Link>
             </div>
             
-            <div className="p-4 flex-1 overflow-y-auto space-y-4">
+            <div className="flex flex-col p-4 overflow-y-auto space-y-4 ">
                 <button className="flex flex-row items-center bg-temporary-turqoise gap-3 p-3 rounded-xl w-69 font-bold">
                     <div className="flex justify-center p-1 bg-white rounded-full">
                         <img className="w-12" src="../hot-meal.svg" alt="meals"/>
