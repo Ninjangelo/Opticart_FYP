@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Dict, Any
 
 # IMPORTING RAG PIPELINE
 from rag_pipeline import run_chat_agent
@@ -30,6 +31,8 @@ app.add_middleware(
 # DATA MODELS - Defines what the frontend can only send as request
 class UserQuery(BaseModel):
     query: str
+    # Enables React to send macro/dietary filters
+    filters: Optional[Dict[str, Any]] = None 
 
 # ----- API ROUTES -----
 # Health Check
@@ -40,7 +43,9 @@ def read_root():
 # Listener for requests from "/chat"
 @app.post("/chat")
 async def chat_endpoint(request: UserQuery):
-    print(f"Received Query: {request.query}")
+    print(f"--- NEW REQUEST RECEIVED ---")
+    print(f"Query: {request.query}")
+    print(f"Filters: {request.filters}")
 
     # Running RAG Pipeline 
     try:
@@ -49,7 +54,8 @@ async def chat_endpoint(request: UserQuery):
         response_data = await loop.run_in_executor(
             executor, 
             run_chat_agent, 
-            request.query
+            request.query,
+            request.filters
         )
         
         # Check for errors from the pipeline

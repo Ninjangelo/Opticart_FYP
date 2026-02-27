@@ -51,7 +51,9 @@ vector_store = SupabaseVectorStore(
 # ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
 class RecipePlan(BaseModel):
     dish_name: str = Field(description="Name of the recipe")
-    ingredients: List[str] = Field(description="List of main ingredients (max 5)")
+    ingredients: List[str] = Field(
+        description="List of ONLY the core ingredient names, highly simplified for a supermarket search bar. (e.g., output 'chicken breast' instead of '2 cups cooked chicken, shredded'). NEVER include numbers, measurements, or preparation instructions. Max 5 core ingredients."
+    )
     instructions: str = Field(description="Brief cooking instructions")
 
 parser = PydanticOutputParser(pydantic_object=RecipePlan)
