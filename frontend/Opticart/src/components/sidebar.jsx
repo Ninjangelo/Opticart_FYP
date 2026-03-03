@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 function Sidebar() {
 
     return (
-        <div className="w-105 h-full dark:bg-sky-950 text-white flex flex-col border-r border-gray-700">
+        <div className="w-105 h-full bg-sky-950 text-white flex flex-col border-r border-gray-700">
             <div className="p-4 border-b border-gray-700">
                 <Link to="/" className="flex flex-row items-center gap-3">
                     <img className="w-10" src="../opticart_logo(inverted).svg" alt="opticart_logo"/>

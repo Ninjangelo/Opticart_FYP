@@ -82,10 +82,10 @@ function ChatWindow() {
   {/* PAGE CONTENT */}
   return (
     <>
-      <div className="flex flex-col w-screen bg-gray-50">
+      <div className="flex flex-col flex-1 h-full relative bg-gray-50">
 
       {/* --- CHAT AREA --- */}
-      <div className="flex-1 dark:bg-gray-900 overflow-y-auto p-4 md:p-8 space-y-6 pb-32">
+      <div className="flex-1 bg-gray-900 overflow-y-auto p-4 md:p-8 space-y-6">
         {messages.map((msg, index) => (
           <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             
@@ -135,7 +135,6 @@ function ChatWindow() {
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
         
         {/* Loading Indicator */}
         {isLoading && (
@@ -145,29 +144,37 @@ function ChatWindow() {
              </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       {/* --- INPUT AREA --- */}
-      <div className="fixed self-center bottom-7 rounded-4xl bg-sky-950 border-t border-gray-700 p-8">
-        <div className="flex flex-row items-center justify-center space-x-4 w-190">
-          <textarea
-            type="text" 
-            className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none bg-gray-600 focus:border-temporary-turqoise font-manrope text-sm field-sizing-content [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-temporary-turqoise [&::-webkit-scrollbar-thumb]:rounded-ful max-h-30 resize-none text-white"
-            placeholder="Ask Opticart..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            disabled={isLoading}
-          ></textarea>
-          <button 
-            onClick={sendMessage} 
-            disabled={isLoading}
-            className={`px-5 py-7 rounded-full text-sm font-bold text-white font-montserrat transition-all ${
-              isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-temporary-turqoise hover:opacity-90'
-            }`}
-          >
-            {isLoading ? '...' : 'Send'}
-          </button>
+      <div className="shrink-0 w-full flex justify-center pb-7 pt-2 bg-transparent dark:bg-gray-900">
+        <div className="rounded-4xl bg-sky-950 border border-gray-700 p-6 shadow-xl w-11/12 max-w-4xl">
+          <div className="flex flex-row items-center justify-center space-x-4">
+            <textarea
+              className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none bg-gray-600 focus:border-temporary-turqoise font-manrope text-sm field-sizing-content [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-temporary-turqoise [&::-webkit-scrollbar-thumb]:rounded-ful max-h-30 resize-none text-white"
+              placeholder="Ask Opticart..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                // Allows Shift+Enter for new lines, Enter to send
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendMessage();
+                }
+              }}
+              disabled={isLoading}
+            ></textarea>
+            <button 
+              onClick={sendMessage} 
+              disabled={isLoading}
+              className={`px-5 py-5 rounded-full text-sm font-bold text-white font-montserrat transition-all h-fit ${
+                isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-temporary-turqoise hover:opacity-90'
+              }`}
+            >
+              {isLoading ? '...' : 'Send'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
