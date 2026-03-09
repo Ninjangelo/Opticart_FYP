@@ -33,7 +33,7 @@ supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 """
 ---------- Model(s) Information ----------
 EMBEDDINGS MODEL: nomic-embed-text
-CHAT MODEL: Llama 3
+CHAT MODEL: gemini-2.5-flash
 """
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
