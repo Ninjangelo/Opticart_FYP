@@ -1,3 +1,5 @@
+# Imports
+# re import for regex to handle messy extracted data from ghost browser 
 import re
 from playwright.sync_api import sync_playwright
 
@@ -20,7 +22,7 @@ def get_asda_price(product_name):
             # Product name injected directly into the URL
             url = f"https://groceries.asda.com/search/{product_name}"
             # 15 second timeout
-            page.goto(url, timeout=15000)
+            page.goto(url, timeout=30000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:
@@ -58,3 +60,15 @@ def get_asda_price(product_name):
             
         browser.close()
         return None
+
+
+# --- ISOLATED UNIT TEST ---
+#if __name__ == "__main__":
+    #print("\n--- RUNNING ASDA SCRAPER TEST ---")
+    #test_item = "chicken breast"
+    
+    # Run the function directly
+    #result = get_asda_price(test_item)
+    
+    #print(f"\nFinal Result for '{test_item}':")
+    #print(result)

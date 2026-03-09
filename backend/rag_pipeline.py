@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 from supabase.client import Client, create_client
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+from langchain_ollama import OllamaEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
@@ -34,8 +35,13 @@ supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 EMBEDDINGS MODEL: nomic-embed-text
 CHAT MODEL: Llama 3
 """
+
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
-llm = ChatOllama(model="llama3", temperature=0)
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",
+    temperature=0
+)
 
 # ------------------------------ MODEL INITIALIZATION ------------------------------
 
