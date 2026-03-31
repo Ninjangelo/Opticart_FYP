@@ -5,7 +5,9 @@ Final Year Project towards creating a chatbot-based web application to demonstra
 - Consider Supabase Vector Database password within URI link to be stored in an **.env** file for security purposes when uploading the RAG pipeline to the repository.
 - <ins>Local Server run Commands:</ins>
   - <ins>Uvicorn:</ins>
-  - .\venv\Scripts\Activate.ps1
-  - uvicorn main:app
+  - cd backend
+  - .\venv\Scripts\activate
+  - uvicorn main:app --reload
   - <ins>React Application:</ins>
+  - cd frontend/Opticart
   - npm run dev (for React Application)
