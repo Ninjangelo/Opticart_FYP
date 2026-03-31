@@ -14,10 +14,10 @@ function Home() {
   return (
     <>
       <HomeNavbar />
-      <div className="flex flex-col px-30 pt-22 pb-39 text-center items-center justify-center space-y-8">
+      <div className="flex flex-col px-30 pt-22 pb-39 text-center items-center justify-center space-y-8 bg-gray-900">
         <img className="w-45" src="/temporary_logo.svg" alt="opticart_logo"/>
-        <h1 className="text-7xl text-temporary-turqoise font-montserrat">Opticart</h1>
-        <p className="text-2xl text-temporary-turqoise2 font-manrope">Budget-friendly meal planning made easy</p>
+        <h1 className="text-7xl text-white font-montserrat">Opticart</h1>
+        <p className="text-2xl text-white font-manrope">Budget-friendly meal planning made easy</p>
         <HeroButtons />
       </div>
       <HomeFooter />
