@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import './css/chat.css';
 
 /* COMPONENT IMPORTS */
@@ -9,12 +9,16 @@ import ChatWindow from '../components/chat_window.jsx';
 
 
 function Chat() {
+  const [activeView, setActiveView] = useState('chat');
 
   return (
     <>
       <div className='flex flex-row h-screen w-full overflow-hidden bg-gray-50'>
-        <Sidebar />
-        <ChatWindow />
+        <Sidebar activeView={activeView} setActiveView={setActiveView} />
+        
+        {activeView === 'chat' && <ChatWindow />}
+        
+        {/* {activeView === 'saved_meals' && <SavedMealsWindow />} */}
       </div>
     </>
   )

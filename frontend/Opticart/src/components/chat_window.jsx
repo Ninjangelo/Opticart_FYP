@@ -152,7 +152,7 @@ function ChatWindow() {
         <div className="rounded-4xl bg-sky-950 border border-gray-700 p-6 shadow-xl w-11/12 max-w-4xl">
           <div className="flex flex-row items-center justify-center space-x-4">
             <textarea
-              className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none bg-gray-600 focus:border-temporary-turqoise font-manrope text-sm field-sizing-content [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-temporary-turqoise [&::-webkit-scrollbar-thumb]:rounded-ful max-h-30 resize-none text-white"
+              className="flex-1 p-4 border border-gray-300 rounded-xl focus:outline-none bg-gray-600 focus:border-temporary-turqoise font-manrope text-sm field-sizing-content [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-thumb]:bg-temporary-turqoise [&::-webkit-scrollbar-thumb]:rounded-full max-h-30 resize-none text-white"
               placeholder="Ask Opticart..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
