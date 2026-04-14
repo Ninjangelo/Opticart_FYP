@@ -8,13 +8,7 @@ import { useState, useRef, useEffect } from 'react';
 
 function ChatWindow() {
   // Conversation History
-  const [messages, setMessages] = useState([
-    { 
-      sender: 'ai', 
-      type: 'text', 
-      content: 'Hello! How can Opticart help you today?' 
-    }
-  ]);
+  const [messages, setMessages] = useState([]);
   
   // Current Input in the Input Box Text
   const [input, setInput] = useState("");
@@ -85,66 +79,86 @@ function ChatWindow() {
       <div className="flex flex-col flex-1 h-full relative bg-gray-50">
 
       {/* --- CHAT AREA --- */}
-      <div className="flex-1 bg-gray-900 overflow-y-auto p-4 md:p-8 space-y-6">
-        {messages.map((msg, index) => (
-          <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            
-            {/* MESSAGE BUBBLE */}
-            <div className={`max-w-3xl p-5 rounded-2xl shadow-sm ${
-              msg.sender === 'user'
-                ? 'bg-temporary-turqoise text-white'
-                : 'bg-white text-gray-800 border border-gray-200'
-            }`}>
-              
-              {/* RENDER SIMPLE TEXT */}
-              {msg.type === 'text' && <p className="text-lg font-manrope">{msg.content}</p>}
+      <div className={`flex-1 bg-gray-900 overflow-y-auto p-4 md:p-8 flex flex-col ${messages.length === 0 ? 'justify-center' : ''}`}>
 
-              {/* RENDER RECIPE CARD (Data from Python) */}
-              {msg.type === 'recipe' && (
-                <div className="space-y-4 font-manrope">
-                  <h3 className="text-2xl font-bold text-temporary-turqoise font-montserrat">{msg.dish}</h3>
-                  
-                  {/* Ingredients Table */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-                    <h4 className="font-bold mb-3 border-b pb-2">Ingredients & Estimated Costs</h4>
-                    <ul className="space-y-2">
-                      {msg.ingredients.map((ing, i) => (
-                        <li key={i} className="flex justify-between text-sm items-center">
-                          <span className="capitalize">{ing.name}</span>
-                          
-                          {/* Price Tag Logic */}
-                          {ing.supermarket_data ? (
-                             <span className="bg-green-100 text-green-800 px-2 py-1 rounded font-mono text-xs font-bold">
-                               {ing.supermarket_data.price}
-                             </span>
-                          ) : (
-                             <span className="text-gray-400 text-xs italic">Check Store</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Instructions */}
-                  <div>
-                    <h4 className="font-bold mb-1">Instructions</h4>
-                    <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap">{msg.instructions}</p>
-                  </div>
-                </div>
-              )}
-            </div>
+        {/* Conditional Rendering for Empty State */}
+        {messages.length === 0 ? (
+          
+          /* Displays Hero greeting when the chat is empty */
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <h1 className="text-4xl md:text-5xl font-bold font-montserrat text-white tracking-wide text-center">
+              Where should we <span className="text-temporary-turqoise">start?</span>
+            </h1>
+            <p className="text-gray-400 text-lg font-manrope text-center max-w-lg">
+              Ask Opticart for a high-protein recipe, a budget-friendly meal plan, or an ingredient breakdown.
+            </p>
           </div>
-        ))}
-        
-        {/* Loading Indicator */}
-        {isLoading && (
-          <div className="flex justify-start animate-pulse">
-             <div className="bg-gray-200 text-gray-500 px-4 py-2 rounded-2xl text-sm font-bold">
-               Opticart is thinking...
-             </div>
+
+        ) : (
+          
+          /* --- Normal Chat View once first prompt is submitted --- */
+          <div className="space-y-6 flex-1">
+            {messages.map((msg, index) => (
+              <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                
+                {/* MESSAGE BUBBLE */}
+                <div className={`max-w-3xl p-5 rounded-2xl shadow-sm ${
+                  msg.sender === 'user'
+                    ? 'bg-temporary-turqoise text-white'
+                    : 'bg-white text-gray-800 border border-gray-200'
+                }`}>
+                  
+                  {/* RENDER SIMPLE TEXT */}
+                  {msg.type === 'text' && <p className="text-lg font-manrope">{msg.content}</p>}
+
+                  {/* RENDER RECIPE CARD */}
+                  {msg.type === 'recipe' && (
+                    <div className="space-y-4 font-manrope">
+                      <h3 className="text-2xl font-bold text-temporary-turqoise font-montserrat">{msg.dish}</h3>
+                      
+                      {/* Ingredients Table */}
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                        <h4 className="font-bold mb-3 border-b pb-2">Ingredients & Estimated Costs</h4>
+                        <ul className="space-y-2">
+                          {msg.ingredients.map((ing, i) => (
+                            <li key={i} className="flex justify-between text-sm items-center">
+                              <span className="capitalize">{ing.name}</span>
+                              
+                              {/* Price Tag Logic */}
+                              {ing.supermarket_data ? (
+                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded font-mono text-xs font-bold">
+                                   {ing.supermarket_data.price}
+                                 </span>
+                              ) : (
+                                 <span className="text-gray-400 text-xs italic">Check Store</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Instructions */}
+                      <div>
+                        <h4 className="font-bold mb-1">Instructions</h4>
+                        <p className="text-sm leading-relaxed text-gray-600 whitespace-pre-wrap">{msg.instructions}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {/* Loading Indicator */}
+            {isLoading && (
+              <div className="flex justify-start animate-pulse">
+                 <div className="bg-gray-200 text-gray-500 px-4 py-2 rounded-2xl text-sm font-bold">
+                   Opticart is thinking...
+                 </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* --- INPUT AREA --- */}
