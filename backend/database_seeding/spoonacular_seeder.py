@@ -3,6 +3,7 @@ import sys
 import json
 import requests
 import psycopg2
+import re
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -11,14 +12,16 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 # Imports for DB connection and Embedding Model
-from rag_pipeline import SUPABASE_URI, embeddings
+from rag_pipeline import embeddings
 
 # Load Spoonacular API key environment variable 
 load_dotenv()
 SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY")
+SUPABASE_URI = os.getenv("DATABASE_URL")
 
 def ingest_spoonacular_data():
-    print("Fetching rich recipe data from Spoonacular...")
+    FETCH_LIMIT = 50
+    print(f"Fetching {FETCH_LIMIT} rich recipe data from Spoonacular...")
     
     # The Complex Search Endpoint with all the flags we need
     url = f"https://api.spoonacular.com/recipes/complexSearch"
@@ -28,7 +31,7 @@ def ingest_spoonacular_data():
         "addRecipeNutrition": "true",
         "instructionsRequired": "true", # Forces recipes to have instructions
         "fillIngredients": "true",      # Forces to return ingredients of recipe
-        "number": 5 # FIVE at the moment for development testing purposes
+        "number": FETCH_LIMIT # Amount of meals/recipes to be obtained from spoonacular API
     }
     
     response = requests.get(url, params=params)
@@ -77,22 +80,32 @@ def ingest_spoonacular_data():
         carbs_g = get_macro("Carbohydrates")
         fat_g = get_macro("Fat")
         
-        # Extract Dietary Flags ---
+        # DIETARY FLAGS EXTRACTED
         is_vegetarian = recipe.get("vegetarian", False)
         is_vegan = recipe.get("vegan", False)
         is_gluten_free = recipe.get("glutenFree", False)
+
+        # UI/VISUAL DATA EXTRACTED
+        image_url = recipe.get("image", "")
+        ready_in_minutes = recipe.get("readyInMinutes", 0)
+
+        # Sanitizing Spoonacular API responses by stripping uneccessary HTML tags
+        raw_summary = recipe.get("summary", "No description available.")
+        clean_summary = re.sub(r'<[^>]+>', '', raw_summary)
         
         # Build the Content Block & Embed
         # This is the paragraph the AI will read during semantic search
         content_block = f"""
         Recipe: {dish_name}
+        Description: {clean_summary[:200]}...
+        Time: {ready_in_minutes} minutes
         Dietary: {'Vegan, ' if is_vegan else ''}{'Vegetarian, ' if is_vegetarian else ''}{'Gluten Free' if is_gluten_free else 'Standard'}
         Macros: {calories} kcal, {protein_g}g Protein, {carbs_g}g Carbs, {fat_g}g Fat
         Ingredients: {', '.join(ingredients_list)}
         Instructions: {instructions[:300]}...
         """
         
-        print(f"Embedding: {dish_name}...")
+        print(f"Embedding [{count+1}/{FETCH_LIMIT}]: {dish_name}...")
         vector = embeddings.embed_query(content_block)
         
         # Save to Supabase DB
@@ -101,13 +114,15 @@ def ingest_spoonacular_data():
                 dish_name, instructions, ingredients, 
                 calories, protein_g, carbs_g, fat_g, 
                 is_vegetarian, is_vegan, is_gluten_free, 
+                image_url, summary, ready_in_minutes,
                 content, embedding
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cur.execute(insert_query, (
             dish_name, instructions, ingredients_json,
             calories, protein_g, carbs_g, fat_g,
             is_vegetarian, is_vegan, is_gluten_free,
+            image_url, clean_summary, ready_in_minutes,
             content_block, vector
         ))
         count += 1

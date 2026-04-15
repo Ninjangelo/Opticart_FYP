@@ -1,19 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 
-/* COMPONENT IMPORTS */
-
-
-/* PAGE IMPORTS */
-
 
 function ChatWindow() {
   // Conversation History
   const [messages, setMessages] = useState([]);
-  
   // Current Input in the Input Box Text
   const [input, setInput] = useState("");
-  
-  // Loading status (disables submit button for Input Box)
+  // Loading status (disables submit button for input Box when prompts are being processed)
   const [isLoading, setIsLoading] = useState(false);
 
   // Auto-scroll to bottom of chat
@@ -22,6 +15,22 @@ function ChatWindow() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   useEffect(scrollToBottom, [messages]);
+
+  // Trigger function for Playwright web scraping scripts
+  const handleComparePrices = (recipe) => {
+    console.log("Triggering price comparison for:", recipe.dish_name);
+    // Temporary messages
+    setMessages(prev => [...prev, { 
+        sender: 'user', 
+        type: 'text', 
+        content: `Compare prices for ${recipe.dish_name} please.` 
+    }]);
+    setMessages(prev => [...prev, { 
+        sender: 'ai', 
+        type: 'text', 
+        content: `I'll boot up the Playwright scrapers for ${recipe.dish_name} soon! (Backend endpoint needs updating next).` 
+    }]);
+  };
 
   // Send message to Python Backend
   const sendMessage = async () => {
@@ -90,7 +99,7 @@ function ChatWindow() {
               Where should we <span className="text-temporary-turqoise">start?</span>
             </h1>
             <p className="text-gray-400 text-lg font-manrope text-center max-w-lg">
-              Ask Opticart for a high-protein recipe, a budget-friendly meal plan, or an ingredient breakdown.
+              Ask Opticart for a recipe of your preferred preference, a budget-friendly meal plan, or an ingredient breakdown.
             </p>
           </div>
 

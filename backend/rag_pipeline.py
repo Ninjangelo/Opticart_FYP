@@ -70,53 +70,75 @@ parser = PydanticOutputParser(pydantic_object=RecipePlan)
 # ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
 
 
-# ------------------------------ PIPELINE EXECUTION ------------------------------
-def run_chat_agent(user_query, metadata_filters=None):
-    
+# ------------------------------ PIPELINE EXECUTION (TWO-STEP ARCHITECTURE) ------------------------------
+def get_recommendations(user_query, limit=6):
+    """
+    ----- RECOMMENDATION -----
+    Searches for the top matching recipes and returns the visual data to displayed on the React UI grid.
+    """
     print(f"\nSearching database for: {user_query}")
-    if metadata_filters:
-        print(f"Applying Filters: {metadata_filters}")
     
-    # RAG Retrieval using LangChain's VectorStore
-    # Passing metadata filters (like {'is_vegan': True})
-    docs = vector_store.similarity_search(
-        query=user_query, 
-        k=1,
-        filter=metadata_filters 
-    )
+    # Converts query into vector
+    query_vector = embeddings.embed_query(user_query)
     
-    # If recipe not found
-    if not docs:
-        return {"error": "No recipe found matching your criteria."}
+    # Call PostgreSQL match_recipes function directly
+    # Bypasses Langchain's similaritySearch function
+    try:
+        response = supabase_client.rpc(
+            "match_recipes", 
+            {
+                "query_embedding": query_vector,
+                # How strict the math matching is
+                "match_threshold": 0.3,
+                # Get 6 recipes for the 2x3 grid
+                "match_count": limit
+            }
+        ).execute()
+        
+        recipes = response.data
+        
+        if not recipes:
+            return {"error": "No recipes found matching your criteria."}
+            
+        print(f"Match found! Returning {len(recipes)} recipes for the UI Grid.")
+        
+        # Formatted data for React UI
+        formatted_recipes = []
+        for r in recipes:
+            formatted_recipes.append({
+                "id": r.get("id"),
+                "dish_name": r.get("dish_name"),
+                "image_url": r.get("image_url"),
+                "summary": r.get("summary"),
+                "ready_in_minutes": r.get("ready_in_minutes"),
+                "calories": r.get("calories"),
+                "protein_g": r.get("protein_g"),
+                "is_vegetarian": r.get("is_vegetarian"),
+                # Ingredients significantly used for Price Comparison process
+                "ingredients": r.get("ingredients"),
+                "instructions": r.get("instructions")
+            })
+            
+        return {"type": "recipe_grid", "recipes": formatted_recipes}
 
-    # Extracting the text payload from document object returned through Langchain
-    context_text = docs[0].page_content
-    
-    # LLM Processing (ingredient extraction)
-    print("Match found! Analyzing recipe...")
-    prompt = PromptTemplate(
-        template="Extract the recipe details from the context.\n{format_instructions}\nContext: {context}",
-        input_variables=["context"],
-        partial_variables={"format_instructions": parser.get_format_instructions()},
-    )
-    
-    chain = prompt | llm | parser
-    recipe_obj = chain.invoke({"context": context_text})
+    except Exception as e:
+        print(f"Database Error: {e}")
+        return {"error": "Failed to connect to the recommendation engine."}
 
 
-    # ------------------------------ PARALLEL DATA SCRAPING ------------------------------
-
-    print(f"CHECKING LIVE STOCK AT ASDA FOR {len(recipe_obj.ingredients)} ITEMS IN PARALLEL...")
+def get_price_comparison(ingredients_list):
+    """
+    ----- PRICE WEB SCRAPING -----
+    Playwright web scraping scripts are triggered when a specific meal is selected
+    """
+    print(f"CHECKING LIVE STOCK AT ASDA FOR {len(ingredients_list)} ITEMS IN PARALLEL...")
     scraped_ingredients = []
     
-    # FIVE Parallel Threads opened
+    # 5 parallel threads opened (all performing at the same time)
     with ThreadPoolExecutor(max_workers=5) as executor:
-        # Run get_asda_price function on all individual ingredients to simultaneously
-        parallel_results = list(executor.map(get_asda_price, recipe_obj.ingredients))
+        parallel_results = list(executor.map(get_asda_price, ingredients_list))
         
-    # Match generated ingredients with scraped data from parallel processing
-    for i, ingredient in enumerate(recipe_obj.ingredients):
-        # Checking if any parallel threads crashed
+    for i, ingredient in enumerate(ingredients_list):
         if isinstance(parallel_results[i], Exception):
             print(f"Scraper thread crashed for {ingredient}: {parallel_results[i]}")
             scraped_ingredients.append({"name": ingredient, "supermarket_data": None})
@@ -126,34 +148,25 @@ def run_chat_agent(user_query, metadata_filters=None):
                 "supermarket_data": parallel_results[i] 
             })
 
-    # ------------------------------ PARALLEL DATA SCRAPING ------------------------------
-
-    # Return Data
-    return {
-        "dish_name": recipe_obj.dish_name,
-        "instructions": recipe_obj.instructions,
-        "ingredients": scraped_ingredients
-    }
+    return {"type": "price_comparison", "scraped_data": scraped_ingredients}
 
 # ------------------------------ PIPELINE EXECUTION ------------------------------
 
 if __name__ == "__main__":
-    # Standard semantic search
-    print("\n--- TEST 1: STANDARD SEARCH ---")
+    print("\n--- TEST 1: THE GRID RECOMMENDATION ---")
     start_time = time.time()
-    print(run_chat_agent("I want a hearty meal with meat."))
-
+    
+    # testing if 6 meals have been obtained
+    grid_data = get_recommendations("I want a hearty meal high in protein")
+    
     end_time = time.time()
-    execution_time = end_time - start_time
     
-    print(f"\nTotal Execution Time: {execution_time:.2f} seconds")
-    
-    # Hybrid Search (Semantic + Metadata Filtering)
-    print("\n--- TEST 2: HYBRID SEARCH (HIGH PROTEIN ONLY) ---")
-    start_time = time.time()
-    print(run_chat_agent("I want a hearty meal.", metadata_filters={"protein_g": 30}))
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    
-    print(f"\nTotal Execution Time: {execution_time:.2f} seconds")
+    # displays meal names
+    if "recipes" in grid_data:
+        print("\nSuccessfully retrieved Grid Data:")
+        for r in grid_data["recipes"]:
+            print(f" - {r['dish_name']} ({r['ready_in_minutes']} mins) | {r['calories']} kcal")
+    else:
+        print(grid_data)
+        
+    print(f"\nGrid Fetch Execution Time: {end_time - start_time:.2f} seconds")
