@@ -11,3 +11,10 @@ Final Year Project towards creating a chatbot-based web application to demonstra
   - <ins>React Application:</ins>
   - cd frontend/Opticart
   - npm run dev (for React Application)
+
+- <ins>Testing FastAPI Calls for retreiving Backend Responses</ins>
+  - <ins>Uvicorn:</ins>
+  - cd backend
+  - .\venv\Scripts\activate
+  - uvicorn main:app --reload
+  - Visit http://localhost:8000/docs

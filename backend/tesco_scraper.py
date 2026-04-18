@@ -1,18 +1,12 @@
-# Imports
-# re import for regex to handle messy extracted data from ghost browser 
 import re
 from playwright.sync_api import sync_playwright
 
-# Product Search
-def get_asda_price(product_name):
-
-    print(f"Live-tracking '{product_name}' at Asda...")
+def get_tesco_price(product_name):
+    print(f"Live-tracking '{product_name}' at Tesco...")
     
     with sync_playwright() as p:
-        # Running ghost browser
-        # Displays ingredient page(s) being scraped currently
         browser = p.chromium.launch(
-            headless=False, 
+            headless=False,
             args=["--disable-blink-features=AutomationControlled"]
         )
         page = browser.new_page(
@@ -20,28 +14,28 @@ def get_asda_price(product_name):
         )
         
         try:
-            # Search Asda
-            # Product name injected directly into the URL
-            url = f"https://groceries.asda.com/search/{product_name}"
+            # Search Tesco - product name injected into URL
+            url = f"https://www.tesco.com/groceries/en-GB/search?query={product_name}"
             # 15 second timeout
             page.goto(url, timeout=30000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:
-                # Wait up to 3 seconds for the "I Accept" button and click it
-                page.get_by_role("button", name="I Accept").click(timeout=3000)
+                # Waits 3 seconds before clicking "Accept all" button
+                page.get_by_role("button", name=re.compile("Accept all", re.IGNORECASE)).click(timeout=3000)
                 page.wait_for_timeout(2000)
             except Exception:
-                # If the banner doesn't show up, just ignore and keep going
+                # Proceeds to carry out scraping process incase banner doesn't appear
                 pass
 
             # Locators
-            title_locator = page.locator(".css-1pp27v6").first
-            price_locator = page.locator(".css-1gvvc97").first
+            title_locator = page.locator("h2.ddsweb-heading a").first
+            price_locator = page.locator(".ddsweb-price__container p").first
             
-            # Waits for title to display on the page
+            # Waits for the title to display on the screen
             title_locator.wait_for(state="visible", timeout=10000)
             
+            # Extract text
             title = title_locator.inner_text().strip()
             raw_price = price_locator.inner_text().strip()
 
@@ -52,13 +46,12 @@ def get_asda_price(product_name):
             return {"name": title, "price": clean_price, "status": "In Stock"}
             
         except Exception as e:
-            print(f" -> Asda Playwright issue: {e}")
+            print(f" -> Tesco Playwright issue: {e}")
             pass
             
         browser.close()
         return None
 
-
 # --- UNIT TEST ---
 if __name__ == "__main__":
-    print(get_asda_price("chicken breast"))
+    print(get_tesco_price("chicken breast"))
