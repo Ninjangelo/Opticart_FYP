@@ -7,7 +7,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 import time
 
 from concurrent.futures import ThreadPoolExecutor
@@ -57,66 +57,156 @@ vector_store = SupabaseVectorStore(
 # ------------------------------ VECTOR STORE INITIALIZATION ------------------------------
 
 
-# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
-class RecipePlan(BaseModel):
-    dish_name: str = Field(description="Name of the recipe")
-    ingredients: List[str] = Field(
-        description="List of ONLY the core ingredient names, highly simplified for a supermarket search bar. (e.g., output 'chicken breast' instead of '2 cups cooked chicken, shredded'). NEVER include numbers, measurements, or preparation instructions. Max 5 core ingredients."
+# ------------------------------ QUERY ANALYZER ------------------------------
+class QueryAnalysis(BaseModel):
+    optimized_search_query: str = Field(
+        description="The core food description to search for, ignoring rules. (e.g., if user says 'chicken meal without cheese under 500 calories', just output 'chicken meal')"
     )
-    instructions: str = Field(description="Brief cooking instructions")
+    max_calories: Optional[int] = Field(
+        default=None, 
+        description="Maximum calories allowed, if explicitly specified by user."
+    )
+    is_vegetarian: Optional[bool] = Field(
+        default=None, 
+        description="True if user explicitly wants vegetarian. False if they explicitly want meat. Null otherwise."
+    )
+    exclude_ingredients: List[str] = Field(
+        default_factory=list, 
+        description="List of specific ingredients to completely ban (e.g., ['cheese', 'dairy', 'milk']). Leave empty if none."
+    )
 
-parser = PydanticOutputParser(pydantic_object=RecipePlan)
+query_parser = PydanticOutputParser(pydantic_object=QueryAnalysis)
 
-# ------------------------------ RESPONSE OUTPUT STRUCTURE ------------------------------
+# ------------------------------ QUERY ANALYZER ------------------------------
 
 
-# ------------------------------ PIPELINE EXECUTION ------------------------------
-def run_chat_agent(user_query, metadata_filters=None):
+# ------------------------------ INGREDIENT SANITISER ------------------------------
+class IngredientSanitizer(BaseModel):
+    clean_ingredients: List[str] = Field(
+        description="A strictly cleaned list of canonical grocery items. MUST BE THE EXACT SAME LENGTH AS THE INPUT LIST. Do not split items like 'salt and pepper' into two items. Keep ONLY the core food item."
+    )
+
+sanitizer_parser = PydanticOutputParser(pydantic_object=IngredientSanitizer)
+
+def sanitize_ingredients(raw_ingredients: List[str]) -> List[str]:
+    """
+    Passes the raw recipe ingredients through Gemini to extract acceptable search terms.
+    """
+    print(f"\n--- SANITIZING {len(raw_ingredients)} INGREDIENTS WITH GEMINI ---")
     
-    print(f"\nSearching database for: {user_query}")
-    if metadata_filters:
-        print(f"Applying Filters: {metadata_filters}")
-    
-    # RAG Retrieval using LangChain's VectorStore
-    # Passing metadata filters (like {'is_vegan': True})
-    docs = vector_store.similarity_search(
-        query=user_query, 
-        k=1,
-        filter=metadata_filters 
+    sanitizer_prompt = PromptTemplate(
+        template="Clean the following recipe ingredients so they can be accurately searched in a supermarket e-commerce database.\nCRITICAL RULE: You MUST return a list with exactly {input_length} items. Do NOT split combined ingredients (e.g., 'salt and pepper' stays 'salt and pepper').\n{format_instructions}\nRaw Ingredients: {ingredients}",
+        input_variables=["ingredients", "input_length"],
+        partial_variables={"format_instructions": sanitizer_parser.get_format_instructions()}
     )
     
-    # If recipe not found
-    if not docs:
-        return {"error": "No recipe found matching your criteria."}
-
-    # Extracting the text payload from document object returned through Langchain
-    context_text = docs[0].page_content
+    sanitizer_chain = sanitizer_prompt | llm | sanitizer_parser
     
-    # LLM Processing (ingredient extraction)
-    print("Match found! Analyzing recipe...")
-    prompt = PromptTemplate(
-        template="Extract the recipe details from the context.\n{format_instructions}\nContext: {context}",
-        input_variables=["context"],
-        partial_variables={"format_instructions": parser.get_format_instructions()},
+    try:
+        # Pass the required length to the prompt
+        analysis = sanitizer_chain.invoke({
+            "ingredients": raw_ingredients,
+            "input_length": len(raw_ingredients)
+        })
+        
+        # If the AI disobeys and returns the wrong amount of items then it uses the raw ingredient format
+        if len(analysis.clean_ingredients) != len(raw_ingredients):
+            print(f"Warning: AI returned {len(analysis.clean_ingredients)} items. Expected {len(raw_ingredients)}. Reverting to raw ingredients.")
+            return raw_ingredients
+            
+        print(f"Cleaned List: {analysis.clean_ingredients}")
+        return analysis.clean_ingredients
+        
+    except Exception as e:
+        print(f"Sanitization failed: {e}")
+        return raw_ingredients
+# ------------------------------ INGREDIENT SANITIZER (NLP) ------------------------------
+
+
+# ------------------------------ PIPELINE EXECUTION (TWO-STEP ARCHITECTURE) ------------------------------
+def get_recommendations(user_query, limit=6):
+    """
+    ----- RECOMMENDATION -----
+    Uses Query Analyzer to extract strcit filtering before searching database
+    """
+    print(f"\n[1/3] Analyzing User Intent: '{user_query}'")
+    
+    # Instruct Gemini to extract filters from the user's sentence
+    analyzer_prompt = PromptTemplate(
+        template="Analyze the user's meal request and extract the search filters.\n{format_instructions}\nUser Request: {query}",
+        input_variables=["query"],
+        partial_variables={"format_instructions": query_parser.get_format_instructions()},
     )
+    analyzer_chain = analyzer_prompt | llm | query_parser
     
-    chain = prompt | llm | parser
-    recipe_obj = chain.invoke({"context": context_text})
+    try:
+        analysis = analyzer_chain.invoke({"query": user_query})
+        print(f"[2/3] Extracted Filters: {analysis.model_dump()}")
+    except Exception as e:
+        print(f"Query Analyzer failed: {e}")
+        return {"error": "Failed to understand search criteria."}
+
+    # Vectorizes the optimized core food phrase
+    query_vector = embeddings.embed_query(analysis.optimized_search_query)
+    
+    # Query PostgreSQL with the strict filters applied
+    print("[3/3] Querying Supabase Database with strict filters...")
+    try:
+        response = supabase_client.rpc(
+            "match_recipes", 
+            {
+                "query_embedding": query_vector,
+                "match_threshold": 0.25, 
+                "match_count": limit,
+                # Passing AI generated filters directly to PostgreSQL
+                "req_vegetarian": analysis.is_vegetarian,
+                "max_calories": analysis.max_calories,
+                "excluded_words": analysis.exclude_ingredients if analysis.exclude_ingredients else None
+            }
+        ).execute()
+        
+        recipes = response.data
+        
+        if not recipes:
+            return {"error": "No recipes found matching your strict dietary criteria."}
+            
+        print(f"Match found! Returning {len(recipes)} safe recipes for the UI Grid.")
+        
+        formatted_recipes = []
+        for r in recipes:
+            formatted_recipes.append({
+                "id": r.get("id"),
+                "dish_name": r.get("dish_name"),
+                "image_url": r.get("image_url"),
+                "summary": r.get("summary"),
+                "ready_in_minutes": r.get("ready_in_minutes"),
+                "calories": r.get("calories"),
+                "protein_g": r.get("protein_g"),
+                "is_vegetarian": r.get("is_vegetarian"),
+                "ingredients": r.get("ingredients"),
+                "instructions": r.get("instructions")
+            })
+            
+        return {"type": "recipe_grid", "recipes": formatted_recipes}
+
+    except Exception as e:
+        print(f"Database Error: {e}")
+        return {"error": "Failed to connect to the recommendation engine."}
 
 
-    # ------------------------------ PARALLEL DATA SCRAPING ------------------------------
-
-    print(f"CHECKING LIVE STOCK AT ASDA FOR {len(recipe_obj.ingredients)} ITEMS IN PARALLEL...")
+def get_price_comparison(ingredients_list):
+    """
+    ----- PRICE WEB SCRAPING -----
+    Playwright web scraping scripts are triggered when a specific meal is selected
+    """
+    print(f"CHECKING LIVE STOCK AT ASDA FOR {len(ingredients_list)} ITEMS IN PARALLEL...")
     scraped_ingredients = []
     
-    # FIVE Parallel Threads opened
+    # 5 parallel threads opened (all performing at the same time)
     with ThreadPoolExecutor(max_workers=5) as executor:
-        # Run get_asda_price function on all individual ingredients to simultaneously
-        parallel_results = list(executor.map(get_asda_price, recipe_obj.ingredients))
+        parallel_results = list(executor.map(get_asda_price, ingredients_list))
         
-    # Match generated ingredients with scraped data from parallel processing
-    for i, ingredient in enumerate(recipe_obj.ingredients):
-        # Checking if any parallel threads crashed
+    for i, ingredient in enumerate(ingredients_list):
         if isinstance(parallel_results[i], Exception):
             print(f"Scraper thread crashed for {ingredient}: {parallel_results[i]}")
             scraped_ingredients.append({"name": ingredient, "supermarket_data": None})
@@ -126,34 +216,20 @@ def run_chat_agent(user_query, metadata_filters=None):
                 "supermarket_data": parallel_results[i] 
             })
 
-    # ------------------------------ PARALLEL DATA SCRAPING ------------------------------
-
-    # Return Data
-    return {
-        "dish_name": recipe_obj.dish_name,
-        "instructions": recipe_obj.instructions,
-        "ingredients": scraped_ingredients
-    }
+    return {"type": "price_comparison", "scraped_data": scraped_ingredients}
 
 # ------------------------------ PIPELINE EXECUTION ------------------------------
 
 if __name__ == "__main__":
-    # Standard semantic search
-    print("\n--- TEST 1: STANDARD SEARCH ---")
+    print("\n--- TEST: QUERY ANALYZER ---")
     start_time = time.time()
-    print(run_chat_agent("I want a hearty meal with meat."))
-
-    end_time = time.time()
-    execution_time = end_time - start_time
     
-    print(f"\nTotal Execution Time: {execution_time:.2f} seconds")
+    # Notice the complex rule!
+    grid_data = get_recommendations("I want a hearty meal under 400 calories with no tomatoes.")
     
-    # Hybrid Search (Semantic + Metadata Filtering)
-    print("\n--- TEST 2: HYBRID SEARCH (HIGH PROTEIN ONLY) ---")
-    start_time = time.time()
-    print(run_chat_agent("I want a hearty meal.", metadata_filters={"protein_g": 30}))
-
-    end_time = time.time()
-    execution_time = end_time - start_time
-    
-    print(f"\nTotal Execution Time: {execution_time:.2f} seconds")
+    if "recipes" in grid_data:
+        print("\nSuccessfully retrieved Safe Grid Data:")
+        for r in grid_data["recipes"]:
+            print(f" - {r['dish_name']} | {r['calories']} kcal")
+            
+    print(f"\nGrid Fetch Execution Time: {time.time() - start_time:.2f} seconds")
