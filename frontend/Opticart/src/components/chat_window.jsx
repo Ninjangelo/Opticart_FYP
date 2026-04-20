@@ -1,5 +1,110 @@
 import { useState, useRef, useEffect } from 'react';
 
+const Typewriter = ({ text, onComplete }) => {
+  const [displayedText, setDisplayedText] = useState("");
+  const hasCompleted = useRef(false);
+
+  useEffect(() => {
+    if (!text) return;
+    let i = 0;
+    setDisplayedText(""); 
+    hasCompleted.current = false;
+
+    const intervalId = setInterval(() => {
+      // Type character by character
+      setDisplayedText(text.slice(0, i + 1));
+      i++;
+      
+      // Stop when finished and notify parent
+      if (i >= text.length) {
+        clearInterval(intervalId);
+        if (!hasCompleted.current && onComplete) {
+          hasCompleted.current = true;
+          onComplete();
+        }
+      }
+    }, 15); // Typing Speed = 15s
+    
+    return () => clearInterval(intervalId);
+  }, [text]); // Re-run only if the text changes
+  
+  return <span>{displayedText}</span>;
+};
+
+
+// AI response typing + Meal Card Fade-in
+const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices }) => {
+  // Start false so the grid is hidden initially
+  const [isTypingComplete, setIsTypingComplete] = useState(!msg.content);
+
+  return (
+    <div className="w-full">
+      {/* The AI's Conversational Bubble */}
+      {msg.content && (
+        <div className="p-5 mb-6 rounded-2xl shadow-sm bg-gray-800 text-white border border-gray-700 w-fit max-w-4xl">
+          <p className="text-lg font-manrope whitespace-pre-wrap leading-relaxed">
+            {/* The Typewriter component! Notice the onComplete prop */}
+            <Typewriter 
+              text={msg.content} 
+              onComplete={() => setIsTypingComplete(true)} 
+            />
+          </p>
+        </div>
+      )}
+      
+      {/* The 3x2 Grid Container - ONLY renders when typing is finished */}
+      {isTypingComplete && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {msg.recipes.map((recipe, i) => (
+            <div 
+              key={i} 
+              className="bg-gray-800 rounded-xl overflow-hidden flex flex-col border border-gray-700 shadow-lg hover:border-temporary-turqoise transition-colors animate-card"
+              style={{ animationDelay: `${i * 0.1}s` }} // <-- Staggers the fade-in!
+            >
+              {/* Recipe Image */}
+              {recipe.image_url ? (
+                <img src={recipe.image_url} alt={recipe.dish_name} className="w-full h-40 object-cover" />
+              ) : (
+                <div className="w-full h-40 bg-gray-700 flex items-center justify-center">
+                  <span className="text-gray-500 italic">No image available</span>
+                </div>
+              )}
+              
+              <div className="p-5 flex flex-col flex-1">
+                <h4 className="font-bold text-xl text-white" title={recipe.dish_name}>
+                  {recipe.dish_name}
+                </h4>
+                
+                {/* Macros / Badges */}
+                <div className="flex gap-2 text-xs font-bold text-gray-300 mt-2 mb-3">
+                  <span className="bg-gray-700 px-2 py-1 rounded">{recipe.ready_in_minutes}mins</span>
+                  <span className="bg-gray-700 px-2 py-1 rounded">{recipe.calories} kcal</span>
+                </div>
+                
+                <div className="mt-auto space-y-2">
+                  <button 
+                    onClick={() => onSelectRecipe(recipe)}
+                    className="w-full bg-gray-700 text-white py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-all text-sm"
+                  >
+                    More Details
+                  </button>
+                  
+                  <button 
+                    onClick={() => onComparePrices(recipe)}
+                    className="w-full bg-transparent border-2 border-temporary-turqoise text-temporary-turqoise py-2.5 rounded-lg font-bold hover:bg-temporary-turqoise hover:text-white transition-all text-sm"
+                  >
+                    Compare Prices
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 function ChatWindow() {
   // Conversation History
@@ -102,7 +207,8 @@ function ChatWindow() {
       if (data.type === 'recipe_grid') {
           setMessages(prev => [...prev, { 
             sender: 'ai', 
-            type: 'recipe_grid', 
+            type: 'recipe_grid',
+            content: data.text,
             recipes: data.recipes 
           }]);
       } else if (data.dish_name) {  // Logic path remains in the case web scrapers return a single recipe card later on
@@ -151,12 +257,12 @@ function ChatWindow() {
         ) : (
           
           /* --- Normal Chat View once first prompt is submitted --- */
-          <div className="space-y-6 flex-1">
+          <div className="space-y-6 flex-1 w-full max-w-7xl mx-auto">
             {messages.map((msg, index) => (
               <div key={index} className="flex">
                 
                 {/* AI MESSAGES ARE TRANSPARENT FOR GRIDS, BUBBLES FOR TEXT */}
-                <div className={`max-w-4xl w-full ${
+                <div className={`max-w-4xl ${
                   msg.sender === 'user'
                     ? 'p-5 rounded-2xl shadow-sm bg-temporary-turqoise text-white w-fit ml-auto'
                     : msg.type === 'recipe_grid' 
@@ -168,54 +274,11 @@ function ChatWindow() {
 
                   {/* RECIPE GRID */}
                   {msg.type === 'recipe_grid' && (
-                    <div className="w-full">
-                      <p className="text-gray-300 font-manrope mb-4 text-lg">Here are some great options I found for you:</p>
-                      
-                      {/* The 3x2 Grid Container */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                        {msg.recipes.map((recipe, i) => (
-                          <div key={i} className="bg-gray-800 rounded-xl overflow-hidden flex flex-col border border-gray-700 shadow-lg hover:border-temporary-turqoise transition-colors">
-                            {/* Recipe Image */}
-                            {recipe.image_url ? (
-                              <img src={recipe.image_url} alt={recipe.dish_name} className="w-full h-40 object-cover" />
-                            ) : (
-                              <div className="w-full h-40 bg-gray-700 flex items-center justify-center">
-                                <span className="text-gray-500 italic">No image available</span>
-                              </div>
-                            )}
-                            
-                            <div className="p-5 flex flex-col flex-1">
-                              <h4 className="font-bold text-xl text-white line-clamp-1" title={recipe.dish_name}>
-                                {recipe.dish_name}
-                              </h4>
-                              
-                              {/* Macros / Badges */}
-                              <div className="flex gap-2 text-xs font-bold text-gray-300 mt-2 mb-3">
-                                <span className="bg-gray-700 px-2 py-1 rounded">{recipe.ready_in_minutes}mins</span>
-                                <span className="bg-gray-700 px-2 py-1 rounded">{recipe.calories} kcal</span>
-                              </div>
-                              
-                              <div className="mt-auto space-y-2">
-                                {/* NEW: The More Details Button */}
-                                <button 
-                                  onClick={() => setSelectedRecipe(recipe)}
-                                  className="w-full bg-gray-700 text-white py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-all text-sm"
-                                >
-                                  More Details
-                                </button>
-                                
-                                <button 
-                                  onClick={() => handleComparePrices(recipe)}
-                                  className="w-full bg-transparent border-2 border-temporary-turqoise text-temporary-turqoise py-2.5 rounded-lg font-bold hover:bg-temporary-turqoise hover:text-white transition-all text-sm"
-                                >
-                                  Compare Prices
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <RecipeGridMessage 
+                      msg={msg} 
+                      onSelectRecipe={setSelectedRecipe}
+                      onComparePrices={handleComparePrices}
+                    />
                   )}
 
                   {/* --- PRICE COMPARISON GRID --- */}
@@ -250,7 +313,16 @@ function ChatWindow() {
                                   >
                                     <div>
                                       <p className="font-bold text-gray-400 text-sm mb-1 uppercase tracking-wider">{storeName}</p>
-                                      <p className="text-white text-sm line-clamp-2 font-bold" title={info.name}>
+                                      {info.image ? (
+                                        <div className="w-full h-24 bg-white rounded-md mb-3 flex items-center justify-center p-2 overflow-hidden">
+                                            <img src={info.image} alt={info.name} className="max-h-full object-contain mix-blend-multiply" />
+                                        </div>
+                                      ) : (
+                                        <div className="w-full h-24 bg-gray-800 rounded-md mb-3 flex items-center justify-center border border-gray-700">
+                                            <span className="text-xs text-gray-500 italic">No Image</span>
+                                        </div>
+                                      )}
+                                      <p className="text-white text-sm font-bold" title={info.name}>
                                         {info.name}
                                       </p>
                                     </div>
@@ -350,31 +422,83 @@ function ChatWindow() {
             {/* Modal Body: Rich Details */}
             <div className="p-8 space-y-8">
               
-              {/* Title & Macros */}
+              {/* Header: Title + Time + Servings */}
               <div>
                 <h2 className="text-3xl font-bold text-white font-montserrat">{selectedRecipe.dish_name}</h2>
-                <div className="flex flex-wrap gap-2 text-sm font-bold text-gray-300 mt-4">
-                  <span className="bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg">{selectedRecipe.ready_in_minutes} mins</span>
-                  <span className="bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg">{selectedRecipe.calories} kcal</span>
-                  <span className="bg-gray-800 border border-gray-700 px-3 py-1.5 rounded-lg">{selectedRecipe.protein_g}g Protein</span>
-                  {selectedRecipe.is_vegetarian && <span className="bg-green-900/40 text-green-400 border border-green-800 px-3 py-1.5 rounded-lg">Vegetarian</span>}
+                <div className="flex flex-wrap gap-3 mt-4 text-sm font-bold">
+                  <span className="bg-temporary-turqoise/20 text-temporary-turqoise border border-temporary-turqoise/50 px-4 py-2 rounded-lg flex items-center">
+                    ⏱︎ {selectedRecipe.ready_in_minutes} mins
+                  </span>
+                  <span className="bg-purple-900/30 text-purple-400 border border-purple-800 px-4 py-2 rounded-lg flex items-center">
+                    Serves up to {selectedRecipe.servings}
+                  </span>
+                </div>
+              </div>
+
+              {/* Nutrition + Dietary Tags */}
+              <div className="bg-gray-800/50 p-5 rounded-2xl border border-gray-700">
+                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Nutrition & Dietary</h3>
+                <div className="flex flex-wrap gap-2 text-sm font-bold text-gray-200">
+                  {/* Macros */}
+                  <span className="bg-gray-700 px-3 py-1.5 rounded shadow-sm">{selectedRecipe.calories} kcal</span>
+                  <span className="bg-gray-700 px-3 py-1.5 rounded shadow-sm">{selectedRecipe.protein_g}g Protein</span>
+                  <span className="bg-gray-700 px-3 py-1.5 rounded shadow-sm">{selectedRecipe.fat_g}g Fat</span>
+                  <span className="bg-gray-700 px-3 py-1.5 rounded shadow-sm">{selectedRecipe.carbs_g}g Carbs</span>
+                  
+                  {/* Dietary Intolerances/Preferences */}
+                  {selectedRecipe.is_vegetarian && <span className="bg-green-900/40 text-green-400 border border-green-800 px-3 py-1.5 rounded">Vegetarian</span>}
+                  {selectedRecipe.is_vegan && <span className="bg-green-900/40 text-green-400 border border-green-800 px-3 py-1.5 rounded">Vegan</span>}
+                  {selectedRecipe.is_gluten_free && <span className="bg-yellow-900/40 text-yellow-400 border border-yellow-800 px-3 py-1.5 rounded">Gluten-Free</span>}
+                  {selectedRecipe.is_dairy_free && <span className="bg-blue-900/40 text-blue-400 border border-blue-800 px-3 py-1.5 rounded">Dairy-Free</span>}
+                </div>
+              </div>
+
+              {/* Categorization (Cuisine, Dish Type, Diet) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm font-manrope border-y border-gray-800 py-4">
+                <div>
+                  <span className="block text-gray-500 font-bold mb-1">Cuisine</span>
+                  <span className="text-gray-300 capitalize">{selectedRecipe.cuisines?.length > 0 ? selectedRecipe.cuisines.join(', ') : 'Unspecified'}</span>
+                </div>
+                <div>
+                  <span className="block text-gray-500 font-bold mb-1">Dish Type</span>
+                  <span className="text-gray-300 capitalize">{selectedRecipe.dish_types?.length > 0 ? selectedRecipe.dish_types.join(', ') : 'Unspecified'}</span>
+                </div>
+                <div>
+                  <span className="block text-gray-500 font-bold mb-1">Dietary Profile</span>
+                  <span className="text-gray-300 capitalize">{selectedRecipe.diets?.length > 0 ? selectedRecipe.diets.join(', ') : 'Unspecified'}</span>
                 </div>
               </div>
 
               {/* Summary */}
               <div>
-                <h3 className="text-xl font-bold text-temporary-turqoise border-b border-gray-800 pb-2 mb-3 font-montserrat">About this meal</h3>
-                <p className="text-gray-300 font-manrope leading-relaxed">{selectedRecipe.summary}</p>
+                <h3 className="text-xl font-bold text-temporary-turqoise pb-2 mb-3 font-montserrat">About this meal</h3>
+                <p 
+                  className="text-gray-300 font-manrope leading-relaxed [&>a]:text-temporary-turqoise [&>a]:underline"
+                  dangerouslySetInnerHTML={{ __html: selectedRecipe.summary }}
+                />
               </div>
 
               {/* Ingredients List */}
               <div>
-                <h3 className="text-xl font-bold text-temporary-turqoise border-b border-gray-800 pb-2 mb-3 font-montserrat">Ingredients Needed</h3>
+                <h3 className="text-xl font-bold text-temporary-turqoise border-t border-gray-800 pt-6 pb-2 mb-3 font-montserrat">Ingredients Needed</h3>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-300 font-manrope list-disc pl-5">
-                  {selectedRecipe.ingredients.map((ing, idx) => (
+                  {/* Safely check and parse the JSON string into an array before mapping */}
+                  {(typeof selectedRecipe.ingredients === 'string' 
+                      ? JSON.parse(selectedRecipe.ingredients || "[]") 
+                      : selectedRecipe.ingredients || []
+                  ).map((ing, idx) => (
                     <li key={idx} className="capitalize">{ing}</li>
                   ))}
                 </ul>
+              </div>
+
+              {/* Instructions */}
+              <div>
+                <h3 className="text-xl font-bold text-temporary-turqoise border-t border-gray-800 pt-6 pb-2 mb-3 font-montserrat">Instructions</h3>
+                <div 
+                  className="text-gray-300 font-manrope leading-relaxed space-y-4 [&>ol]:list-decimal [&>ol]:pl-5 [&>ul]:list-disc [&>ul]:pl-5 [&_li]:mb-2"
+                  dangerouslySetInnerHTML={{ __html: selectedRecipe.instructions || "No specific instructions provided for this recipe." }}
+                />
               </div>
 
               {/* Action Button inside Modal */}

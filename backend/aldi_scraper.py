@@ -29,17 +29,19 @@ def get_aldi_price(product_name):
             # Locators
             title_locator = page.locator("[data-test='product-tile__name']").first
             price_locator = page.locator("[data-test='product-tile__price']").first
+            image_locator = page.locator(".product-tile__picture img").first
             
             title_locator.wait_for(state="visible", timeout=10000)
             
             title = title_locator.inner_text().strip()
             raw_price = price_locator.inner_text().strip()
+            image_url = image_locator.get_attribute("src")
 
             price_match = re.search(r'£\d+\.\d{2}', raw_price)
             clean_price = price_match.group(0) if price_match else raw_price
             
             browser.close()
-            return {"name": title, "price": clean_price, "status": "In Stock"}
+            return {"name": title, "price": clean_price, "status": "In Stock", "image": image_url}
             
         except Exception as e:
             print(f" -> Aldi Playwright issue: {e}")

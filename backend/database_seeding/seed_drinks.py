@@ -11,32 +11,25 @@ from dotenv import load_dotenv
 parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
-# Imports for DB connection and Embedding Model
 from rag_pipeline import embeddings
 
-# Load Spoonacular API key environment variable 
 load_dotenv()
 SPOONACULAR_API_KEY = os.getenv("SPOONACULAR_API_KEY")
 SUPABASE_URI = os.getenv("DATABASE_URL")
 
-def ingest_spoonacular_data():
-    TOTAL_MEALS_NEEDED = 300
-    BATCH_SIZE = 100
+def ingest_drinks():
+    TOTAL_DRINKS = 50 # Fetching 50 specific drinks
+    BATCH_SIZE = 50
     
-    print(f"Fetching {TOTAL_MEALS_NEEDED} rich recipe data from Spoonacular in batches of {BATCH_SIZE}...")
+    print(f"Fetching {TOTAL_DRINKS} BEVERAGES from Spoonacular...")
     
-    # DB Connection
     conn = psycopg2.connect(SUPABASE_URI)
     cur = conn.cursor()
     
-    # Clearing Table Content
-    cur.execute("TRUNCATE TABLE recipes CASCADE;")
+    # Notice: NO TRUNCATE COMMAND HERE! We are appending to the database.
     
     count = 0
-    
-    # Pagination Loop
-    for offset in range(0, TOTAL_MEALS_NEEDED, BATCH_SIZE):
-        print(f"\n--- Fetching batch {offset} to {offset + BATCH_SIZE} ---")
+    for offset in range(0, TOTAL_DRINKS, BATCH_SIZE):
         
         url = f"https://api.spoonacular.com/recipes/complexSearch"
         params = {
@@ -46,7 +39,8 @@ def ingest_spoonacular_data():
             "instructionsRequired": "true", 
             "fillIngredients": "true",      
             "number": BATCH_SIZE, 
-            "offset": offset # This tells the API to skip the ones we already grabbed!
+            "offset": offset,
+            "type": "beverage" # <--- THIS FORCES THE API TO ONLY RETURN DRINKS!
         }
         
         response = requests.get(url, params=params)
@@ -57,7 +51,6 @@ def ingest_spoonacular_data():
         data = response.json()
         
         for recipe in data.get("results", []):
-            # EXTRACTING CORE DATA
             dish_name = recipe.get("title", "Unknown Recipe")
             
             instruction_steps = []
@@ -73,7 +66,6 @@ def ingest_spoonacular_data():
             ingredients_list = [ing.get("original", "") for ing in raw_ingredients if "original" in ing]
             ingredients_json = json.dumps(ingredients_list)
             
-            # EXTRACTING MACROS DATA
             nutrients = recipe.get("nutrition", {}).get("nutrients", [])
             def get_macro(name):
                 return next((n["amount"] for n in nutrients if n["name"] == name), 0)
@@ -86,7 +78,6 @@ def ingest_spoonacular_data():
             sugar_g = get_macro("Sugar")
             sodium_mg = get_macro("Sodium")
             
-            # DIETARY & CATEGORY FLAGS
             is_vegetarian = recipe.get("vegetarian", False)
             is_vegan = recipe.get("vegan", False)
             is_gluten_free = recipe.get("glutenFree", False)
@@ -96,16 +87,13 @@ def ingest_spoonacular_data():
             ready_in_minutes = recipe.get("readyInMinutes", 0)
             servings = recipe.get("servings", 1)
             
-            # Arrays for UI Filtering
             cuisines = recipe.get("cuisines", [])
             dish_types = recipe.get("dishTypes", [])
             diets = recipe.get("diets", [])
 
-            # Sanitizing Summary
             raw_summary = recipe.get("summary", "No description available.")
             clean_summary = re.sub(r'<[^>]+>', '', raw_summary)
             
-            # Build the Content Block & Embed
             content_block = f"""
             Recipe: {dish_name}
             Description: {clean_summary[:200]}...
@@ -116,10 +104,9 @@ def ingest_spoonacular_data():
             Instructions: {instructions[:300]}...
             """
             
-            print(f"Embedding [{count+1}/{TOTAL_MEALS_NEEDED}]: {dish_name}...")
+            print(f"Embedding [{count+1}/{TOTAL_DRINKS}]: {dish_name}...")
             vector = embeddings.embed_query(content_block)
             
-            # Save to Supabase DB (Notice all the new columns here!)
             insert_query = """
                 INSERT INTO recipes (
                     dish_name, instructions, ingredients, 
@@ -135,7 +122,7 @@ def ingest_spoonacular_data():
                 calories, protein_g, carbs_g, fat_g, saturated_fat_g, sugar_g, sodium_mg,
                 is_vegetarian, is_vegan, is_gluten_free, is_dairy_free,
                 servings, cuisines, dish_types, diets,
-                image_url, raw_summary, ready_in_minutes, # Saving raw_summary here so React can format the bold text!
+                image_url, raw_summary, ready_in_minutes, 
                 content_block, vector
             ))
             count += 1
@@ -143,13 +130,7 @@ def ingest_spoonacular_data():
     conn.commit()
     cur.close()
     conn.close()
-    print(f"\nSuccessfully ingested {count} fully detailed recipes into Supabase!")
+    print(f"\nSuccessfully APPENDED {count} new beverages into Supabase! You now have a total of 350 recipes.")
 
 if __name__ == "__main__":
-    print("WARNING: This will erase existing recipes and re-seed the database.")
-    confirmation = input("Are you sure you want to continue? (y/n): ")
-    
-    if confirmation.lower() == 'y':
-        ingest_spoonacular_data()
-    else:
-        print("Seeding cancelled.")
+    ingest_drinks()

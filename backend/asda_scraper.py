@@ -38,18 +38,20 @@ def get_asda_price(product_name):
             # Locators
             title_locator = page.locator(".css-1pp27v6").first
             price_locator = page.locator(".css-1gvvc97").first
+            image_locator = page.locator("[data-locator='img-product-image']").first
             
             # Waits for title to display on the page
             title_locator.wait_for(state="visible", timeout=10000)
             
             title = title_locator.inner_text().strip()
             raw_price = price_locator.inner_text().strip()
+            image_url = image_locator.get_attribute("src")
 
             price_match = re.search(r'£\d+\.\d{2}', raw_price)
             clean_price = price_match.group(0) if price_match else raw_price
             
             browser.close()
-            return {"name": title, "price": clean_price, "status": "In Stock"}
+            return {"name": title, "price": clean_price, "status": "In Stock", "image": image_url}
             
         except Exception as e:
             print(f" -> Asda Playwright issue: {e}")

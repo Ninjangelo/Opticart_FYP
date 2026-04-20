@@ -34,12 +34,13 @@ supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 ---------- Model(s) Information ----------
 EMBEDDINGS MODEL: nomic-embed-text
 CHAT MODEL: gemini-2.5-flash
+TEMPORARY MODEL (20/04/2025 - 00:55): gemini-2.5-flash 
 """
 
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model="gemini-2.5-flash-lite",
     temperature=0
 )
 
@@ -70,6 +71,18 @@ class QueryAnalysis(BaseModel):
         default=None, 
         description="True if user explicitly wants vegetarian. False if they explicitly want meat. Null otherwise."
     )
+    is_vegan: Optional[bool] = Field(
+        default=None, 
+        description="True if user explicitly wants vegan. Null otherwise."
+    )
+    is_gluten_free: Optional[bool] = Field(
+        default=None, 
+        description="True if user explicitly wants gluten-free. Null otherwise."
+    )
+    is_dairy_free: Optional[bool] = Field(
+        default=None, 
+        description="True if user explicitly wants dairy-free. Null otherwise."
+    )
     exclude_ingredients: List[str] = Field(
         default_factory=list, 
         description="List of specific ingredients to completely ban (e.g., ['cheese', 'dairy', 'milk']). Leave empty if none."
@@ -95,7 +108,17 @@ def sanitize_ingredients(raw_ingredients: List[str]) -> List[str]:
     print(f"\n--- SANITIZING {len(raw_ingredients)} INGREDIENTS WITH GEMINI ---")
     
     sanitizer_prompt = PromptTemplate(
-        template="Clean the following recipe ingredients so they can be accurately searched in a supermarket e-commerce database.\nCRITICAL RULE: You MUST return a list with exactly {input_length} items. Do NOT split combined ingredients (e.g., 'salt and pepper' stays 'salt and pepper').\n{format_instructions}\nRaw Ingredients: {ingredients}",
+        template="""Clean the following recipe ingredients so they can be accurately searched in a UK supermarket e-commerce database.
+        
+CRITICAL RULES:
+1. You MUST return a list with exactly {input_length} items. Do not drop or add items.
+2. If an ingredient contains "or" (e.g., "cream or whole milk"), pick ONLY ONE primary item (e.g., "whole milk").
+3. For compound items like "salt and pepper", simplify it to just one primary item like "black pepper" to avoid confusing the search engine.
+4. Simplify specific colored vegetables to their base name if they are commonly grouped (e.g., "orange pepper" -> "peppers").
+5. Keep ONLY the core grocery item name.
+
+{format_instructions}
+Raw Ingredients: {ingredients}""",
         input_variables=["ingredients", "input_length"],
         partial_variables={"format_instructions": sanitizer_parser.get_format_instructions()}
     )
@@ -124,7 +147,7 @@ def sanitize_ingredients(raw_ingredients: List[str]) -> List[str]:
 
 
 # ------------------------------ PIPELINE EXECUTION (TWO-STEP ARCHITECTURE) ------------------------------
-def get_recommendations(user_query, limit=6):
+def get_recommendations(user_query, limit=8):
     """
     ----- RECOMMENDATION -----
     Uses Query Analyzer to extract strcit filtering before searching database
@@ -158,8 +181,10 @@ def get_recommendations(user_query, limit=6):
                 "query_embedding": query_vector,
                 "match_threshold": 0.25, 
                 "match_count": limit,
-                # Passing AI generated filters directly to PostgreSQL
                 "req_vegetarian": analysis.is_vegetarian,
+                "req_vegan": analysis.is_vegan,
+                "req_gluten_free": analysis.is_gluten_free,
+                "req_dairy_free": analysis.is_dairy_free,
                 "max_calories": analysis.max_calories,
                 "excluded_words": analysis.exclude_ingredients if analysis.exclude_ingredients else None
             }
@@ -182,12 +207,69 @@ def get_recommendations(user_query, limit=6):
                 "ready_in_minutes": r.get("ready_in_minutes"),
                 "calories": r.get("calories"),
                 "protein_g": r.get("protein_g"),
+                "fat_g": r.get("fat_g"),
+                "carbs_g": r.get("carbs_g"),
+                "servings": r.get("servings"),
                 "is_vegetarian": r.get("is_vegetarian"),
+                "is_vegan": r.get("is_vegan"),
+                "is_gluten_free": r.get("is_gluten_free"),
+                "is_dairy_free": r.get("is_dairy_free"),
+                "cuisines": r.get("cuisines"),
+                "dish_types": r.get("dish_types"),
+                "diets": r.get("diets"),
                 "ingredients": r.get("ingredients"),
                 "instructions": r.get("instructions")
             })
+
+        print("[4/4] Generating conversational explanation...")
+        
+        # Create a tiny summary of the found meals to save LLM tokens
+        recipe_context = "\n".join([
+            f"- {r['dish_name']} ({r['calories']} kcal, Protein: {r['protein_g']}g, Vegan: {r['is_vegan']})" 
+            for r in formatted_recipes
+        ])
+        
+        chat_prompt = PromptTemplate(
+            template="""You are Opticart, a highly empathetic and knowledgeable culinary AI assistant.
+            The user asked: "{user_query}"
             
-        return {"type": "recipe_grid", "recipes": formatted_recipes}
+            Based on their request, my database retrieved these specific meals:
+            {recipe_context}
+            
+            Write a warm, human-like response (1-2 short paragraphs). 
+            Acknowledge the user's specific context (e.g., their fitness goals, ailment, or craving). 
+            Explain broadly WHY these selected meals are a great fit for their specific needs based on their nutritional or dietary profiles. 
+            
+            CRITICAL: Do NOT list the recipes out individually with bullet points (the UI will display them as cards below your text). Just speak to the user naturally like a friendly nutritionist handing them a curated menu.
+            """,
+            input_variables=["user_query", "recipe_context"]
+        )
+        
+        chat_chain = chat_prompt | llm
+        
+        try:
+            # Generate the conversational text
+            ai_response = chat_chain.invoke({
+                "user_query": user_query,
+                "recipe_context": recipe_context
+            })
+            conversational_text = ai_response.content
+        except Exception as e:
+            print(f"Chat generation failed: {e}")
+            conversational_text = "Here are some great options I found for you based on your request:"
+
+        # Return BOTH the conversational text AND the raw grid data!
+        return {
+            "type": "recipe_grid", 
+            "text": conversational_text, 
+            "recipes": formatted_recipes
+        }
+            
+        return {
+            "type": "recipe_grid",
+            "text": conversational_text,
+            "recipes": formatted_recipes
+        }
 
     except Exception as e:
         print(f"Database Error: {e}")
