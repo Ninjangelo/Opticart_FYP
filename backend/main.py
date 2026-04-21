@@ -1,3 +1,4 @@
+print("--- 1. Booting up main.py ---")
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -5,12 +6,15 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, List
 
+print("--- 2. Loading RAG Pipeline ---")
 # ----- RAG PIPELINE -----
 from rag_pipeline import get_recommendations, sanitize_ingredients
 
+print("--- 3. Loading Price Service ---")
 # ----- LIVE-TIME PRICE SCRAPING -----
 from price_service import compare_all_supermarkets
 
+print("--- 4. Finished loading! Starting API ---")
 # API Instance
 app = FastAPI()
 
@@ -91,15 +95,23 @@ async def chat_endpoint(request: UserQuery):
         )
         
         # Check for errors in the middle of pipeline execution
+        # (e.g., The database was empty, or the user asked a random question)
         if "error" in response_data:
-             raise HTTPException(status_code=404, detail=response_data["error"])
+            # DO NOT raise HTTPException. 
+            # Return it directly so React can display the message beautifully!
+            return {
+                "error": "I couldn't find any meals in my database that match those exact criteria. Could we try searching for a different ingredient or diet type?"
+            }
 
         return response_data
     
-    # Error raise to application if any processes crash
+    # Catch unexpected backend crashes (e.g. LLM failure, weird prompts)
     except Exception as e:
         print(f"Error processing request: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Instead of a 500 Internal Server Error, return a polite fallback
+        return {
+            "error": "Oops! I'm Opticart, an AI assistant dedicated to food and meal planning. Please ask me a question related to recipes, groceries, or diets!"
+        }
     
 # ----- WEB SCRAPING ENDPOINT -----
 @app.post("/scrape")

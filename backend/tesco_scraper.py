@@ -17,7 +17,7 @@ def get_tesco_price(product_name):
             # Search Tesco - product name injected into URL
             url = f"https://www.tesco.com/groceries/en-GB/search?query={product_name}"
             # 15 second timeout
-            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            page.goto(url, timeout=12000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:

@@ -15,7 +15,7 @@ def get_sainsburys_price(product_name):
         
         try:
             url = f"https://www.sainsburys.co.uk/gol-ui/SearchResults/{product_name}"
-            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            page.goto(url, timeout=12000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:

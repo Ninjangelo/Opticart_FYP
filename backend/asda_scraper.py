@@ -24,7 +24,7 @@ def get_asda_price(product_name):
             # Product name injected directly into the URL
             url = f"https://groceries.asda.com/search/{product_name}"
             # 15 second timeout
-            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            page.goto(url, timeout=12000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:

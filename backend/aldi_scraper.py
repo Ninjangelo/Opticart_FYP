@@ -17,7 +17,7 @@ def get_aldi_price(product_name):
             formatted_name = product_name.replace(" ", "+")
             url = f"https://www.aldi.co.uk/results?q={formatted_name}"
             
-            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            page.goto(url, timeout=12000, wait_until="domcontentloaded")
 
             # Handle Cookie Banner
             try:

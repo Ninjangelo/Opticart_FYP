@@ -1,6 +1,10 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../supabaseClient";
 
 function Sidebar({ activeView, setActiveView, isOpen}) {
+    const { user } = useAuth();
+    const navigate = useNavigate();
 
     const getButtonClass = (viewName) => {
         const baseClass = "group flex flex-row items-center gap-3 p-3 rounded-xl w-69 font-bold transition-all duration-200";
@@ -8,6 +12,11 @@ function Sidebar({ activeView, setActiveView, isOpen}) {
         const inactiveClass = "bg-transparent text-gray-300 hover:bg-sky-800 hover:text-white";
         
         return `${baseClass} ${activeView === viewName ? activeClass : inactiveClass}`;
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate("/");
     };
 
     return (
@@ -18,14 +27,16 @@ function Sidebar({ activeView, setActiveView, isOpen}) {
             {/* INNER CONTAINER */}
             <div className="w-[330px] h-full flex flex-col text-white">
                 <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                    <Link to="/" className="flex flex-row items-center gap-3">
+                    <div className="flex flex-row items-center gap-3">
                         <img className="w-10" src="../opticart_logo(inverted).svg" alt="opticart_logo"/>
                         <h2 className="text-xl font-bold font-montserrat whitespace-nowrap">Opticart</h2>
+                    </div>
+                    <Link to="/" className="bg-gray-600 text-sm px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer">
+                        🏠︎ Return home
                     </Link>
                 </div>
-                
-                <div className="flex flex-col p-4 space-y-4 flex-1 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700">
-                    
+
+                <div className="flex flex-col space-y-5 mt-6 items-center">
                     {/* CHAT BUTTON */}
                     <button onClick={() => setActiveView('chat')} className={getButtonClass('chat')}>
                         <div className="flex justify-center p-2.5 bg-white rounded-full group-hover:bg-sky-200 shrink-0">
@@ -69,13 +80,28 @@ function Sidebar({ activeView, setActiveView, isOpen}) {
                         </div>
                         <div className="transition-colors duration-200 whitespace-nowrap">Browse Meals</div>
                     </button>
-
                 </div>
                 
-                <div className="p-8 border-t border-gray-700 mt-auto">
+                
+                <div className="p-5 border-t border-gray-700 mt-auto space-y-5">
                     {/*<button className="w-full bg-temporary-turqoise text-white py-2 rounded-lg font-bold hover:opacity-90 transition-all whitespace-nowrap">
                     + New Recipe
                     </button>*/}
+
+                    {/* Display the user's email */}
+                    {user && (
+                        <div className="text-sm font-manrope text-gray-400 break-all">
+                            Logged in as: <br/>
+                            <span className="text-white font-bold text-base">{user.email}</span>
+                        </div>
+                    )}
+                    
+                    <button 
+                        onClick={handleLogout}
+                        className="w-full bg-gray-600 py-3 rounded-xl hover:bg-temporary-turqoise hover:text-white transition-all whitespace-nowrap cursor-pointer"
+                    >
+                        Log out
+                    </button>
                 </div>
             </div>
         </div>

@@ -18,7 +18,7 @@ def compare_all_supermarkets(ingredient_name: str):
     }
 
     # ThreadPoolExecutor running each function asynchronously
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         # Passes all tasks to ThreadPoolExecutor
         future_to_store = {
             executor.submit(func, ingredient_name): store 

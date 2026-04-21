@@ -1,6 +1,14 @@
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../supabaseClient";
 
 function HomeNavbar() {
+    // Intercept logged in user to conditionally display logout option
+    const { user } = useAuth();
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+    };
 
     return (
         <nav className="grid grid-cols-8 items-center bg-temporary-turqoise px-8 py-4 text-white">
@@ -8,9 +16,19 @@ function HomeNavbar() {
                 <img className="w-12" src="/temporary_logo.svg" alt="opticart_logo"/>
                 <h1>Opticart</h1>
             </Link>
+
             <div className="flex flex-row col-start-9 text-right items-center space-x-14">
-                <Link to="#about">About</Link>
                 <Link to="https://github.com/Ninjangelo/Opticart_FYP" target="_blank"><img className="w-10" src="/github.svg" alt="github_link"/></Link>
+                <Link to="#about">About</Link>
+
+                {user && (
+                    <button 
+                        onClick={handleLogout} 
+                        className="bg-sky-950 px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
+                    >
+                        Logout
+                    </button>
+                )}
             </div>
         </nav>
     );

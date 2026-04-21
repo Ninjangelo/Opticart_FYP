@@ -1,22 +1,32 @@
+print("-> Importing os & dotenv")
 import os
 from dotenv import load_dotenv
+
+print("-> Importing supabase")
 from supabase.client import Client, create_client
+
+print("-> Importing langchain vectorstores")
 from langchain_community.vectorstores import SupabaseVectorStore
+
+print("-> Importing langchain ollama")
 from langchain_ollama import OllamaEmbeddings
+
+print("-> Importing langchain google")
 from langchain_google_genai import ChatGoogleGenerativeAI
+
+print("-> Importing langchain core")
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
+
+print("-> Importing pydantic")
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import time
-
 from concurrent.futures import ThreadPoolExecutor
-
-# Scraper
-from asda_scraper import get_asda_price
 
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
+print("--- RAG 1: Loading Environment Variables ---")
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
@@ -24,6 +34,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in .env file.")
 
+print("--- RAG 2: Connecting to Supabase ---")
 supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ------------------------------ SUPABASE POSTGRESQL DB CONFIGURATION ------------------------------
@@ -36,11 +47,12 @@ EMBEDDINGS MODEL: nomic-embed-text
 CHAT MODEL: gemini-2.5-flash
 TEMPORARY MODEL (20/04/2025 - 00:55): gemini-2.5-flash 
 """
-
+print("--- RAG 3: Loading Ollama Embeddings ---")
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
 
+print("--- RAG 4: Loading Google Gemini ---")
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-lite",
+    model="gemini-2.5-flash",
     temperature=0
 )
 
@@ -48,12 +60,14 @@ llm = ChatGoogleGenerativeAI(
 
 # ------------------------------ VECTOR STORE INITIALIZATION ------------------------------
 
+print("--- RAG 5: Loading Vector Store ---")
 vector_store = SupabaseVectorStore(
     client=supabase_client,
     embedding=embeddings,
     table_name="recipes",
     query_name="match_recipes",
 )
+print("--- RAG 6: Pipeline Ready! ---")
 
 # ------------------------------ VECTOR STORE INITIALIZATION ------------------------------
 
@@ -179,7 +193,7 @@ def get_recommendations(user_query, limit=8):
             "match_recipes", 
             {
                 "query_embedding": query_vector,
-                "match_threshold": 0.25, 
+                "match_threshold": 0.60, 
                 "match_count": limit,
                 "req_vegetarian": analysis.is_vegetarian,
                 "req_vegan": analysis.is_vegan,

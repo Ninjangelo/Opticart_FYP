@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../supabaseClient';
 
 const Typewriter = ({ text, onComplete }) => {
   const [displayedText, setDisplayedText] = useState("");
@@ -33,8 +35,8 @@ const Typewriter = ({ text, onComplete }) => {
 
 
 // AI response typing + Meal Card Fade-in
-const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices }) => {
-  // Start false so the grid is hidden initially
+const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices, onToggleSave, savedMealIds }) => {
+  // Only declare this ONCE
   const [isTypingComplete, setIsTypingComplete] = useState(!msg.content);
 
   return (
@@ -55,50 +57,67 @@ const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices }) => {
       {/* The 3x2 Grid Container - ONLY renders when typing is finished */}
       {isTypingComplete && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {msg.recipes.map((recipe, i) => (
-            <div 
-              key={i} 
-              className="bg-gray-800 rounded-xl overflow-hidden flex flex-col border border-gray-700 shadow-lg hover:border-temporary-turqoise transition-colors animate-card"
-              style={{ animationDelay: `${i * 0.1}s` }} // <-- Staggers the fade-in!
-            >
-              {/* Recipe Image */}
-              {recipe.image_url ? (
-                <img src={recipe.image_url} alt={recipe.dish_name} className="w-full h-40 object-cover" />
-              ) : (
-                <div className="w-full h-40 bg-gray-700 flex items-center justify-center">
-                  <span className="text-gray-500 italic">No image available</span>
-                </div>
-              )}
-              
-              <div className="p-5 flex flex-col flex-1">
-                <h4 className="font-bold text-xl text-white" title={recipe.dish_name}>
-                  {recipe.dish_name}
-                </h4>
+          {msg.recipes.map((recipe, i) => {
+            // Check if this specific recipe ID is in the saved set
+            const isSaved = savedMealIds.has(recipe.id);
+
+            return (
+              <div 
+                key={i} 
+                className="bg-gray-800 rounded-xl overflow-hidden flex flex-col border border-gray-700 shadow-lg hover:border-temporary-turqoise transition-colors animate-card"
+                style={{ animationDelay: `${i * 0.1}s` }} // <-- Staggers the fade-in!
+              >
+                {/* Recipe Image */}
+                {recipe.image_url ? (
+                  <img src={recipe.image_url} alt={recipe.dish_name} className="w-full h-40 object-cover" />
+                ) : (
+                  <div className="w-full h-40 bg-gray-700 flex items-center justify-center">
+                    <span className="text-gray-500 italic">No image available</span>
+                  </div>
+                )}
                 
-                {/* Macros / Badges */}
-                <div className="flex gap-2 text-xs font-bold text-gray-300 mt-2 mb-3">
-                  <span className="bg-gray-700 px-2 py-1 rounded">{recipe.ready_in_minutes}mins</span>
-                  <span className="bg-gray-700 px-2 py-1 rounded">{recipe.calories} kcal</span>
-                </div>
-                
-                <div className="mt-auto space-y-2">
-                  <button 
-                    onClick={() => onSelectRecipe(recipe)}
-                    className="w-full bg-gray-700 text-white py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-all text-sm"
-                  >
-                    More Details
-                  </button>
+                <div className="p-5 flex flex-col flex-1">
+                  <h4 className="font-bold text-xl text-white" title={recipe.dish_name}>
+                    {recipe.dish_name}
+                  </h4>
                   
-                  <button 
-                    onClick={() => onComparePrices(recipe)}
-                    className="w-full bg-transparent border-2 border-temporary-turqoise text-temporary-turqoise py-2.5 rounded-lg font-bold hover:bg-temporary-turqoise hover:text-white transition-all text-sm"
-                  >
-                    Compare Prices
-                  </button>
+                  {/* Macros / Badges */}
+                  <div className="flex gap-2 text-xs font-bold text-gray-300 mt-2 mb-3">
+                    <span className="bg-gray-700 px-2 py-1 rounded">{recipe.ready_in_minutes}mins</span>
+                    <span className="bg-gray-700 px-2 py-1 rounded">{recipe.calories} kcal</span>
+                  </div>
+                  
+                  <div className="mt-auto space-y-2">
+                    <button 
+                      onClick={() => onSelectRecipe(recipe)}
+                      className="w-full bg-gray-700 text-white py-2.5 rounded-lg font-bold hover:bg-gray-600 transition-all text-sm"
+                    >
+                      More Details
+                    </button>
+                    
+                    <button 
+                      onClick={() => onComparePrices(recipe)}
+                      className="w-full bg-transparent border-2 border-temporary-turqoise text-temporary-turqoise py-2.5 rounded-lg font-bold hover:bg-temporary-turqoise hover:text-white transition-all text-sm"
+                    >
+                      Compare Prices
+                    </button>
+                    
+                    {/* The Dynamic Save Toggle Button */}
+                    <button 
+                      onClick={() => onToggleSave(recipe)}
+                      className={`w-full border-2 py-2.5 rounded-lg font-bold transition-all text-sm ${
+                          isSaved 
+                          ? 'bg-red-900/20 text-red-400 border-red-500/50 hover:bg-red-500 hover:text-white' 
+                          : 'bg-gray-800 border-pink-500/50 text-pink-400 hover:bg-pink-500 hover:text-white hover:border-pink-500'
+                      }`}
+                    >
+                      {isSaved ? '🗑️ Remove Save' : '❤️ Save Meal'}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -106,7 +125,7 @@ const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices }) => {
 };
 
 
-function ChatWindow() {
+function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
   // Conversation History
   const [messages, setMessages] = useState([]);
   // Current Input in the Input Box Text
@@ -122,6 +141,41 @@ function ChatWindow() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
   useEffect(scrollToBottom, [messages]);
+
+  // Auto-trigger the scraper when arriving from Browse Meals
+  useEffect(() => {
+    if (recipeToCompare) {
+      handleComparePrices(recipeToCompare);
+      if (clearRecipeToCompare) clearRecipeToCompare();
+    }
+  }, [recipeToCompare]);
+
+  // Save Meal Function
+  const { user } = useAuth();
+  
+  const [savedMealIds, setSavedMealIds] = useState(new Set());
+
+  useEffect(() => {
+    const fetchSaved = async () => {
+      if (!user) return;
+      const { data } = await supabase.from('saved_meals').select('recipe_id').eq('user_id', user.id);
+      if (data) setSavedMealIds(new Set(data.map(d => d.recipe_id)));
+    };
+    fetchSaved();
+  }, [user]);
+
+  const handleToggleSave = async (recipe) => {
+    if (!user) return;
+    const isSaved = savedMealIds.has(recipe.id);
+
+    if (isSaved) {
+        const { error } = await supabase.from('saved_meals').delete().match({ user_id: user.id, recipe_id: recipe.id });
+        if (!error) setSavedMealIds(prev => { const next = new Set(prev); next.delete(recipe.id); return next; });
+    } else {
+        const { error } = await supabase.from('saved_meals').insert({ user_id: user.id, recipe_id: recipe.id });
+        if (!error) setSavedMealIds(prev => { const next = new Set(prev); next.add(recipe.id); return next; });
+    }
+  };
 
   // Trigger function for Playwright web scraping scripts
   const handleComparePrices = async (recipe) => {
@@ -278,6 +332,8 @@ function ChatWindow() {
                       msg={msg} 
                       onSelectRecipe={setSelectedRecipe}
                       onComparePrices={handleComparePrices}
+                      onToggleSave={handleToggleSave}
+                      savedMealIds={savedMealIds}
                     />
                   )}
 
