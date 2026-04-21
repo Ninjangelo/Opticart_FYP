@@ -78,10 +78,10 @@ function BrowseMeals({ onComparePrices }) {
     const handleCloseModal = () => setSelectedRecipe(null);
 
     return (
-        <div className="flex-1 bg-gray-900 p-8 overflow-y-auto w-full h-full flex flex-col items-center relative">
+        <div className="flex-1 bg-gray-900 py-8 px-20 overflow-y-auto w-full h-full flex flex-col items-center relative">
             {/* HEADER & FILTER */}
             <div className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-700 pb-4 shrink-0">
-                <h1 className="text-4xl font-bold font-montserrat text-white">Browse Meals</h1>
+                <h1 className="text-4xl font-bold font-montserrat text-white">Browse <span className="text-temporary-turqoise">Meals</span></h1>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
                     <label className="text-gray-400 font-manrope font-bold">Meal Type:</label>
                     <select value={filter} onChange={handleFilterChange} className="bg-gray-800 text-white border border-gray-600 rounded-lg p-2 font-manrope focus:outline-none focus:border-temporary-turqoise cursor-pointer">
@@ -98,7 +98,7 @@ function BrowseMeals({ onComparePrices }) {
 
             {/* RECIPE GRID */}
             {loading ? (
-                <div className="text-temporary-turqoise font-bold text-xl animate-pulse mt-20">Loading database...</div>
+                <div className="text-temporary-turqoise font-bold text-xl animate-pulse mt-20">Loading meals...</div>
             ) : (
                 <>
                     <div className="w-full max-w-7xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -135,7 +135,7 @@ function BrowseMeals({ onComparePrices }) {
                                                 : 'bg-gray-800 border-pink-500/50 text-pink-400 hover:bg-pink-500 hover:text-white hover:border-pink-500'
                                             }`}
                                         >
-                                            {isSaved ? '🗑️ Remove Save' : '❤️ Save Meal'}
+                                            {isSaved ? '🗑️ Remove Save' : '❤︎⁠ Save Meal'}
                                         </button>
                                     </div>
                                 </div>

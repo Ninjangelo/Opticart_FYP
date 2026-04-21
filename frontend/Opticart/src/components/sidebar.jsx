@@ -36,7 +36,7 @@ function Sidebar({ activeView, setActiveView, isOpen}) {
                     </Link>
                 </div>
 
-                <div className="flex flex-col space-y-5 mt-6 items-center">
+                <div className="flex flex-col pt-2 pb-4 items-center">
                     {/* CHAT BUTTON */}
                     <button onClick={() => setActiveView('chat')} className={getButtonClass('chat')}>
                         <div className="flex justify-center p-2.5 bg-white rounded-full group-hover:bg-sky-200 shrink-0">
@@ -83,7 +83,7 @@ function Sidebar({ activeView, setActiveView, isOpen}) {
                 </div>
                 
                 
-                <div className="p-5 border-t border-gray-700 mt-auto space-y-5">
+                <div className="p-6 border-t border-gray-700 space-y-3">
                     {/*<button className="w-full bg-temporary-turqoise text-white py-2 rounded-lg font-bold hover:opacity-90 transition-all whitespace-nowrap">
                     + New Recipe
                     </button>*/}

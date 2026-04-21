@@ -37,13 +37,13 @@ function SavedMeals({ onComparePrices }) {
     const handleCloseModal = () => setSelectedRecipe(null);
 
     return (
-        <div className="flex-1 bg-gray-900 p-8 overflow-y-auto w-full h-full flex flex-col items-center relative">
+        <div className="flex-1 bg-gray-900 py-8 px-20 overflow-y-auto w-full h-full flex flex-col items-center relative">
             <div className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-700 pb-4 shrink-0">
-                <h1 className="text-4xl font-bold font-montserrat text-white">Saved Meals</h1>
+                <h1 className="text-4xl font-bold font-montserrat text-white">My Saved <span className="text-temporary-turqoise">Meals</span></h1>
             </div>
 
             {loading ? (
-                <div className="text-temporary-turqoise font-bold text-xl animate-pulse mt-20">Loading your meals...</div>
+                <div className="text-white font-bold text-xl animate-pulse mt-20">Loading your meals...</div>
             ) : savedMeals.length === 0 ? (
                 <div className="text-gray-400 font-manrope text-lg mt-20">You haven't saved any meals yet! Head to the Chat or Browse Meals to find some.</div>
             ) : (

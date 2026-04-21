@@ -5,6 +5,9 @@ import Sidebar from '../components/sidebar.jsx';
 import ChatWindow from '../components/chat_window.jsx';
 import BrowseMeals from '../components/browse_meals.jsx';
 import SavedMeals from '../components/saved_meals.jsx';
+import SavedLists from '../components/saved_lists';
+import MealCalendar from '../components/meal_calendar.jsx';
+import Recommendations from '../components/recommendations.jsx'
 
 function Chat() {
   const [activeView, setActiveView] = useState('chat');
@@ -49,6 +52,19 @@ function Chat() {
           <div className={activeView === 'saved_meals' ? 'flex-1 h-full relative flex flex-col overflow-hidden' : 'hidden'}>
              <SavedMeals onComparePrices={handleTriggerPriceComparison} />
           </div>
+
+          <div className={activeView === 'saved_lists' ? 'flex-1 h-full relative flex flex-col overflow-hidden' : 'hidden'}>
+             <SavedLists />
+          </div>
+
+          <div className={activeView === 'meal_calendar' ? 'flex-1 h-full relative flex flex-col overflow-hidden' : 'hidden'}>
+             <MealCalendar onComparePrices={handleTriggerPriceComparison} />
+          </div>
+
+          <div className={activeView === 'recommendations' ? 'flex-1 h-full relative flex flex-col overflow-hidden' : 'hidden'}>
+             <Recommendations onComparePrices={handleTriggerPriceComparison} />
+          </div>
+
         </div>
       </div>
     </>

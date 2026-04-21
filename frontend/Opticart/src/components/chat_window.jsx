@@ -54,7 +54,7 @@ const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices, onToggleSave,
         </div>
       )}
       
-      {/* The 3x2 Grid Container - ONLY renders when typing is finished */}
+      {/* The 4x2 Grid Container - ONLY renders when typing is finished */}
       {isTypingComplete && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {msg.recipes.map((recipe, i) => {
@@ -164,6 +164,7 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
     fetchSaved();
   }, [user]);
 
+  // Save Meal Function
   const handleToggleSave = async (recipe) => {
     if (!user) return;
     const isSaved = savedMealIds.has(recipe.id);
@@ -174,6 +175,56 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
     } else {
         const { error } = await supabase.from('saved_meals').insert({ user_id: user.id, recipe_id: recipe.id });
         if (!error) setSavedMealIds(prev => { const next = new Set(prev); next.add(recipe.id); return next; });
+    }
+  };
+
+  // Save Shopping List Function
+  const handleSaveList = async (storeName, msg) => {
+    if (!user) return alert("Please log in to save lists!");
+
+    // 1. Extract only the valid items for this specific store
+    const items = [];
+    Object.entries(msg.comparisonData).forEach(([ingName, storeData]) => {
+        const item = storeData[storeName];
+        if (item && item.status !== "Out of Stock" && item.status !== "Error") {
+            // --- SMART PRICE PARSING ---
+            let priceNum = 0;
+            // If it contains a 'p' but NO '£' symbol (e.g., "85p")
+            if (item.price.includes('p') && !item.price.includes('£')) {
+                // Strip all letters and divide by 100 to get pounds
+                priceNum = parseFloat(item.price.replace(/[^\d.]/g, '')) / 100;
+            } else {
+                // Strip all letters/symbols to safely grab the pound amount
+                priceNum = parseFloat(item.price.replace(/[^\d.]/g, ''));
+            }
+
+            items.push({
+                ingredient_name: ingName,
+                product_name: item.name,
+                price: priceNum,
+                quantity: 1, 
+                image: item.image
+            });
+        }
+    });
+
+    // 2. Calculate the total price of the valid items
+    const total = items.reduce((sum, item) => sum + item.price, 0);
+
+    // 3. Save to Supabase
+    const { error } = await supabase.from('saved_lists').insert({
+        user_id: user.id,
+        dish_name: msg.dishName,
+        supermarket: storeName,
+        total_price: total,
+        items: items
+    });
+
+    if (error) {
+        console.error("Error saving list:", error);
+        alert("Failed to save shopping list.");
+    } else {
+        alert(`Successfully saved ${storeName} shopping list for ${msg.dishName}!`);
     }
   };
 
@@ -303,8 +354,8 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
             <h1 className="text-4xl md:text-5xl font-bold font-montserrat text-white tracking-wide text-center">
               Where should we <span className="text-temporary-turqoise">start?</span>
             </h1>
-            <p className="text-gray-400 text-lg font-manrope text-center max-w-lg">
-              Ask Opticart for a recipe of your preferred preference, a budget-friendly meal plan, or an ingredient breakdown.
+            <p className="text-gray-400 text-lg font-manrope text-center max-w-4xl">
+              Tell me what you're craving, any dietary goals you have, or ingredients you need to use up.<br />I'll find the perfect recipes so we can compare the supermarket prices!
             </p>
           </div>
 
@@ -349,16 +400,13 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
                         {Object.entries(msg.comparisonData).map(([ingredientName, stores]) => (
                           <div key={ingredientName} className="bg-gray-800 rounded-xl p-5 border border-gray-700 shadow-md">
                             
-                            {/* Ingredient Header */}
                             <h4 className="text-xl font-bold text-temporary-turqoise capitalize mb-4 border-b border-gray-700 pb-2">
                               {ingredientName}
                             </h4>
                             
-                            {/* Grid of 4 Supermarkets */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                               {Object.entries(stores).map(([storeName, info]) => {
-                                // Determine text color based on stock status
-                                const isError = info.status === "Out of Stock" || info.status === "Error";
+                                const isError = info.status === "Out of Stock" || info.status === "Error" || info.price === "N/A";
                                 
                                 return (
                                   <div 
@@ -401,6 +449,56 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
                           </div>
                         ))}
                       </div>
+
+                      {/* --- BASKET TOTALS & SAVE BUTTONS --- */}
+                      <div className="mt-8 pt-6 border-t border-gray-700">
+                        <h3 className="text-xl font-bold text-white mb-4 font-montserrat">Save Shopping List</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {["Asda", "Tesco", "Sainsburys", "Aldi"].map(store => {
+                            // Calculate total for this specific store
+                            let storeTotal = 0;
+                            let missingItems = 0;
+                            
+                            Object.values(msg.comparisonData).forEach(storeData => {
+                              const item = storeData[store];
+                              if (item && item.status !== "Out of Stock" && item.status !== "Error" && item.price !== "N/A") {
+                                // --- SMART PRICE PARSING ---
+                                let parsedPrice = 0;
+                                if (item.price.includes('p') && !item.price.includes('£')) {
+                                    parsedPrice = parseFloat(item.price.replace(/[^\d.]/g, '')) / 100;
+                                } else {
+                                    parsedPrice = parseFloat(item.price.replace(/[^\d.]/g, ''));
+                                }
+                                storeTotal += parsedPrice;
+
+                              } else {
+                                missingItems += 1;
+                              }
+                            });
+
+                            return (
+                              <div key={store} className="bg-gray-800 border border-gray-600 rounded-xl p-4 flex flex-col items-center text-center">
+                                <span className="font-bold text-gray-300 uppercase tracking-wide">{store} Total</span>
+                                <span className="text-3xl font-bold text-temporary-turqoise mt-1 mb-1">
+                                  £{storeTotal.toFixed(2)}
+                                </span>
+                                {missingItems > 0 && (
+                                  <span className="text-xs text-red-400 font-bold mb-3">
+                                    Missing {missingItems} item(s)
+                                  </span>
+                                )}
+                                <button 
+                                  onClick={() => handleSaveList(store, msg)}
+                                  className="mt-auto w-full bg-sky-900 hover:bg-temporary-turqoise text-white py-2 rounded-lg font-bold transition-colors text-sm"
+                                >
+                                  Save {store} Basket
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      
                     </div>
                   )}
 

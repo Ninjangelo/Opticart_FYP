@@ -8,7 +8,7 @@ from typing import Optional, Dict, Any, List
 
 print("--- 2. Loading RAG Pipeline ---")
 # ----- RAG PIPELINE -----
-from rag_pipeline import get_recommendations, sanitize_ingredients
+from rag_pipeline import get_recommendations, sanitize_ingredients, get_similar_recommendations
 
 print("--- 3. Loading Price Service ---")
 # ----- LIVE-TIME PRICE SCRAPING -----
@@ -44,6 +44,11 @@ class UserQuery(BaseModel):
 class ScrapeRequest(BaseModel):
     # React sends a list of ingredients as part of scraping the prices for each one
     ingredients: List[str]
+
+class RecommendationRequest(BaseModel):
+    saved_dish_names: list
+    saved_recipe_ids: list
+    limit: int = 8
 
 # ----- MULTIPLE INGREDIENT HELPER FUNCTION -----
 """
@@ -140,3 +145,16 @@ async def scrape_endpoint(request: ScrapeRequest):
     except Exception as e:
         print(f"Error during scraping: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/recommendations")
+async def generate_recommendations(request: RecommendationRequest):
+    try:
+        recs = get_similar_recommendations(
+            request.saved_dish_names, 
+            request.saved_recipe_ids, 
+            request.limit
+        )
+        return {"recommendations": recs}
+    except Exception as e:
+        print(f"Error generating recommendations: {e}")
+        return {"error": str(e)}

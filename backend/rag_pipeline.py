@@ -170,7 +170,13 @@ def get_recommendations(user_query, limit=8):
     
     # Instruct Gemini to extract filters from the user's sentence
     analyzer_prompt = PromptTemplate(
-        template="Analyze the user's meal request and extract the search filters.\n{format_instructions}\nUser Request: {query}",
+        template="""Analyze the user's meal request and extract the search filters.
+        
+        CRITICAL RULE FOR RANDOM REQUESTS: 
+        If the user says they don't know what to eat, asks for a random meal, or says "surprise me", you MUST set the 'optimized_search_query' to a broad, universally appealing culinary term (e.g., "delicious hearty dinner", "popular comfort food", or "fresh healthy lunch") so the database has a concept to search for!
+        
+        {format_instructions}
+        User Request: {query}""",
         input_variables=["query"],
         partial_variables={"format_instructions": query_parser.get_format_instructions()},
     )
@@ -313,6 +319,83 @@ def get_price_comparison(ingredients_list):
             })
 
     return {"type": "price_comparison", "scraped_data": scraped_ingredients}
+
+
+def get_similar_recommendations(saved_dish_names: list, saved_recipe_ids: list, limit: int = 8):
+    """
+    Takes a list of saved dish names to form a taste profile query,
+    and returns recommended recipes excluding the already saved ones.
+    """
+    if not saved_dish_names:
+        return []
+
+    # Combine all their saved meals into one giant "Taste Profile" string
+    taste_profile_query = " ".join(saved_dish_names)
+    print(f"--- Generating recommendations for profile: {taste_profile_query[:50]}... ---")
+    
+    fetch_count = limit + len(saved_recipe_ids)
+    
+    try:
+        # 1. Turn the taste profile text into a math vector directly using Ollama
+        query_vector = embeddings.embed_query(taste_profile_query)
+        
+        # 2. Query Supabase directly (Bypassing the LangChain bug!)
+        response = supabase_client.rpc(
+            "match_recipes", 
+            {
+                "query_embedding": query_vector,
+                "match_threshold": 0.50, # A generous threshold for broad recommendations
+                "match_count": fetch_count,
+                # Pass None to ignore strict dietary filters for general recommendations
+                "req_vegetarian": None,
+                "req_vegan": None,
+                "req_gluten_free": None,
+                "req_dairy_free": None,
+                "max_calories": None,
+                "excluded_words": None
+            }
+        ).execute()
+        
+        results = response.data
+        
+        recommendations = []
+        for r in results:
+            recipe_id = r.get('id')
+            
+            # Check if the user has ALREADY saved this meal. If not, add it!
+            if recipe_id not in saved_recipe_ids:
+                recipe = {
+                    "id": recipe_id,
+                    "dish_name": r.get('dish_name', 'Unknown'),
+                    "summary": r.get('summary', ''),
+                    "image_url": r.get('image_url', ''),
+                    "ready_in_minutes": r.get('ready_in_minutes', 0),
+                    "calories": r.get('calories', 0),
+                    "servings": r.get('servings', 1),
+                    "ingredients": r.get('ingredients', '[]'),
+                    "instructions": r.get('instructions', ''),
+                    "protein_g": r.get('protein_g', 0),
+                    "fat_g": r.get('fat_g', 0),
+                    "carbs_g": r.get('carbs_g', 0),
+                    "is_vegetarian": r.get('is_vegetarian', False),
+                    "is_vegan": r.get('is_vegan', False),
+                    "is_gluten_free": r.get('is_gluten_free', False),
+                    "is_dairy_free": r.get('is_dairy_free', False),
+                    "cuisines": r.get('cuisines', []),
+                    "dish_types": r.get('dish_types', []),
+                    "diets": r.get('diets', [])
+                }
+                recommendations.append(recipe)
+            
+            # Stop looping once we have exactly the amount we need (8)
+            if len(recommendations) == limit:
+                break
+                
+        return recommendations
+        
+    except Exception as e:
+        print(f"Similarity search failed: {e}")
+        return []
 
 # ------------------------------ PIPELINE EXECUTION ------------------------------
 
