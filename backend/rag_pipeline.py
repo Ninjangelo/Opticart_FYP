@@ -49,12 +49,18 @@ TEMPORARY MODEL (20/04/2025 - 00:55): gemini-2.5-flash
 """
 print("--- RAG 3: Loading Ollama Embeddings ---")
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
-
-print("--- RAG 4: Loading Google Gemini ---")
-llm = ChatGoogleGenerativeAI(
+primary_llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     temperature=0
 )
+
+fallback_llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash", 
+    temperature=0
+)
+
+print("--- RAG 4: Loading Google Gemini ---")
+llm = primary_llm.with_fallbacks([fallback_llm])
 
 # ------------------------------ MODEL INITIALIZATION ------------------------------
 
