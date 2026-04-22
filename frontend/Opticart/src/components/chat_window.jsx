@@ -244,7 +244,7 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
 
     try {
       // Call FastAPI endpoint
-      const response = await fetch('${import.meta.env.VITE_API_URL}/scrape', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -297,7 +297,7 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
 
     try {
       // Send input to FastAPI "/chat" endpoint (Port 8000)
-      const response = await fetch('${import.meta.env.VITE_API_URL}/chat', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: queryToSend })

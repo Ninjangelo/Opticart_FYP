@@ -49,7 +49,7 @@ function Recommendations({ onComparePrices }) {
 
             // Step B: Send the lists to our new Python endpoint
             try {
-                const response = await fetch('${import.meta.env.VITE_API_URL}/recommendations', {
+                const response = await fetch(`${import.meta.env.VITE_API_URL}/recommendations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
