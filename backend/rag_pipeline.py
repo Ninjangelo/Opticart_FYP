@@ -49,18 +49,18 @@ TEMPORARY MODEL (20/04/2025 - 00:55): gemini-2.5-flash
 """
 print("--- RAG 3: Loading Ollama Embeddings ---")
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
-primary_llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0
-)
-
-fallback_llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash", 
-    temperature=0
-)
 
 print("--- RAG 4: Loading Google Gemini ---")
-llm = primary_llm.with_fallbacks([fallback_llm])
+llm = ChatGoogleGenerativeAI(
+    #model="gemini-2.5-flash-lite", 
+    model="gemma-3-12b-it",
+    temperature=0
+)
+
+#llm = ChatOllama(
+    #model="llama3.2", 
+    #temperature=0
+#)
 
 # ------------------------------ MODEL INITIALIZATION ------------------------------
 
@@ -112,6 +112,14 @@ query_parser = PydanticOutputParser(pydantic_object=QueryAnalysis)
 
 # ------------------------------ QUERY ANALYZER ------------------------------
 
+# ------------------------------ INTENT ROUTER ------------------------------
+class IntentClassification(BaseModel):
+    intent: str = Field(
+        description="Classify the user's intent. Must be exactly one of: 'NEW_SEARCH', 'FOLLOW_UP', 'SMALL_TALK', or 'OUT_OF_DOMAIN'"
+    )
+
+intent_parser = PydanticOutputParser(pydantic_object=IntentClassification)
+# ------------------------------ INTENT ROUTER ------------------------------
 
 # ------------------------------ INGREDIENT SANITISER ------------------------------
 class IngredientSanitizer(BaseModel):
@@ -166,40 +174,131 @@ Raw Ingredients: {ingredients}""",
 # ------------------------------ INGREDIENT SANITIZER (NLP) ------------------------------
 
 
-# ------------------------------ PIPELINE EXECUTION (TWO-STEP ARCHITECTURE) ------------------------------
-def get_recommendations(user_query, limit=8):
+# ------------------------------ PIPELINE EXECUTION ------------------------------
+def get_recommendations(user_query, history=None, limit=8):
     """
-    ----- RECOMMENDATION -----
-    Uses Query Analyzer to extract strcit filtering before searching database
+    ----- THE INTENT ROUTER & RECOMMENDATION ENGINE -----
+    Reads memory, decides the route, and either searches the DB or chats naturally.
     """
-    print(f"\n[1/3] Analyzing User Intent: '{user_query}'")
+    if history is None:
+        history = []
+        
+    print(f"\n[1/4] Formatting Memory. {len(history)} past messages found.")
     
-    # Instruct Gemini to extract filters from the user's sentence
+    # 1. Format the history array into a readable chat log for the AI
+    formatted_history = ""
+    for msg in history:
+        # msg is a Pydantic object from main.py, so we use dot notation (.role, .content)
+        role_name = "User" if msg.role == "user" else "Opticart"
+        formatted_history += f"{role_name}: {msg.content}\n\n"
+
+    # 2. Run the Intent Router
+    print(f"[2/4] Routing Intent for: '{user_query}'")
+    router_prompt = PromptTemplate(
+        template="""Analyze the user's latest message given the conversation history.
+        
+        HISTORY:
+        {history}
+        
+        LATEST USER MESSAGE: {query}
+        
+        CLASSIFICATION RULES:
+        - "NEW_SEARCH": The user wants to find new meals, lists ingredients they have in their fridge, or changes dietary criteria.
+        - "FOLLOW_UP": The user is asking a question about the specific meals ALREADY shown in the history.
+        - "SMALL_TALK": The user is just saying hello, thank you, or making a casual remark.
+        - "OUT_OF_DOMAIN": The user is asking about topics completely unrelated to food, groceries, meal planning, or nutrition (e.g., coding, cars, politics, history).
+        
+        {format_instructions}""",
+        input_variables=["query", "history"],
+        partial_variables={"format_instructions": intent_parser.get_format_instructions()}
+    )
+    
+    try:
+        router_chain = router_prompt | llm | intent_parser
+        intent_result = router_chain.invoke({"query": user_query, "history": formatted_history})
+        current_intent = intent_result.intent
+        print(f"--> DECISION: {current_intent}")
+    except Exception as e:
+        error_msg = str(e)
+        # Catch Google Rate Limits specifically!
+        if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
+            print("--> Rate limit hit at Router. Stopping execution.")
+            return {"error": "I am receiving too many requests right now! Please give me about 60 seconds to catch my breath before asking again."}
+            
+        print(f"Router failed, defaulting to NEW_SEARCH. Error: {e}")
+        current_intent = "NEW_SEARCH"
+
+
+    # ==========================================
+    # ROUTE A: GUARDRAIL / OUT OF DOMAIN
+    # ==========================================
+    if current_intent == "OUT_OF_DOMAIN":
+        print("[3/4] Out of Domain detected. Redirecting user...")
+        return {
+            "type": "text", 
+            "text": "I am Opticart, an AI exclusively dedicated to culinary assistance, meal planning, and supermarket pricing! Please ask me a question related to recipes, groceries, or diets, and I'd be happy to help."
+        }
+    # ==========================================
+    # ROUTE A: FOLLOW UP OR SMALL TALK (Bypass Database)
+    # ==========================================
+    if current_intent in ["FOLLOW_UP", "SMALL_TALK"]:
+        print("[3/4] Bypassing Database. Generating conversational response...")
+        
+        # Add a tiny 1-second pause so Google's Free Tier doesn't block the "double-tap" request!
+        time.sleep(1) 
+        
+        chat_prompt = PromptTemplate(
+            template="""You are Opticart, a friendly and highly knowledgeable culinary AI assistant.
+            Here is your conversation history with the user (which includes hidden SYSTEM CONTEXT about what recipe cards they are currently looking at):
+            
+            {history}
+            
+            The user just said: "{query}"
+            
+            Respond naturally and directly to their latest message. 
+            - If they ask about the meals on their screen, use the SYSTEM CONTEXT to give them accurate nutritional info, cooking advice, or benefits.
+            - If they just say hi/thanks, be polite and friendly.
+            - CRITICAL: DO NOT use markdown bolding like asterisks (**). Output clean plain text or standard dashes (-) for bullet points.
+            """,
+            input_variables=["query", "history"]
+        )
+        try:
+            chat_chain = chat_prompt | llm
+            ai_response = chat_chain.invoke({"query": user_query, "history": formatted_history})
+            # Return a simple text dictionary!
+            return {"type": "text", "text": ai_response.content}
+        except Exception as e:
+            # Print the REAL error to the terminal so we can debug it!
+            print(f"--> LLM Chat Generation Failed: {e}")
+            return {"error": "I had a little trouble generating a response. Could you ask that one more time?"}
+
+    # ==========================================
+    # ROUTE B: NEW SEARCH (Execute existing RAG Database Logic)
+    # ==========================================
+    print("[3/4] Extracting Filters for Database Search...")
+    
     analyzer_prompt = PromptTemplate(
         template="""Analyze the user's meal request and extract the search filters.
-        
-        CRITICAL RULE FOR RANDOM REQUESTS: 
-        If the user says they don't know what to eat, asks for a random meal, or says "surprise me", you MUST set the 'optimized_search_query' to a broad, universally appealing culinary term (e.g., "delicious hearty dinner", "popular comfort food", or "fresh healthy lunch") so the database has a concept to search for!
-        
+        CRITICAL RULES: 
+        1. RANDOM REQUESTS: If user says "surprise me", set 'optimized_search_query' to a broad term like "delicious hearty dinner".
+        2. PANTRY MATCHING: If user lists ingredients (e.g., "I have chicken and rice"), set 'optimized_search_query' to those exact ingredients!
         {format_instructions}
         User Request: {query}""",
         input_variables=["query"],
         partial_variables={"format_instructions": query_parser.get_format_instructions()},
     )
-    analyzer_chain = analyzer_prompt | llm | query_parser
     
     try:
+        analyzer_chain = analyzer_prompt | llm | query_parser
         analysis = analyzer_chain.invoke({"query": user_query})
-        print(f"[2/3] Extracted Filters: {analysis.model_dump()}")
+        print(f"--> Extracted Filters: {analysis.model_dump()}")
     except Exception as e:
         print(f"Query Analyzer failed: {e}")
         return {"error": "Failed to understand search criteria."}
 
-    # Vectorizes the optimized core food phrase
     query_vector = embeddings.embed_query(analysis.optimized_search_query)
     
-    # Query PostgreSQL with the strict filters applied
-    print("[3/3] Querying Supabase Database with strict filters...")
+    print("[4/4] Querying Supabase Database...")
     try:
         response = supabase_client.rpc(
             "match_recipes", 
@@ -217,83 +316,46 @@ def get_recommendations(user_query, limit=8):
         ).execute()
         
         recipes = response.data
-        
         if not recipes:
             return {"error": "No recipes found matching your strict dietary criteria."}
             
-        print(f"Match found! Returning {len(recipes)} safe recipes for the UI Grid.")
+        print(f"Match found! Returning {len(recipes)} recipes.")
         
+        # Format recipes
         formatted_recipes = []
         for r in recipes:
             formatted_recipes.append({
-                "id": r.get("id"),
-                "dish_name": r.get("dish_name"),
-                "image_url": r.get("image_url"),
-                "summary": r.get("summary"),
-                "ready_in_minutes": r.get("ready_in_minutes"),
-                "calories": r.get("calories"),
-                "protein_g": r.get("protein_g"),
-                "fat_g": r.get("fat_g"),
-                "carbs_g": r.get("carbs_g"),
-                "servings": r.get("servings"),
-                "is_vegetarian": r.get("is_vegetarian"),
-                "is_vegan": r.get("is_vegan"),
-                "is_gluten_free": r.get("is_gluten_free"),
-                "is_dairy_free": r.get("is_dairy_free"),
-                "cuisines": r.get("cuisines"),
-                "dish_types": r.get("dish_types"),
-                "diets": r.get("diets"),
-                "ingredients": r.get("ingredients"),
-                "instructions": r.get("instructions")
+                "id": r.get("id"), "dish_name": r.get("dish_name"), "image_url": r.get("image_url"),
+                "summary": r.get("summary"), "ready_in_minutes": r.get("ready_in_minutes"),
+                "calories": r.get("calories"), "protein_g": r.get("protein_g"), "fat_g": r.get("fat_g"),
+                "carbs_g": r.get("carbs_g"), "servings": r.get("servings"),
+                "is_vegetarian": r.get("is_vegetarian"), "is_vegan": r.get("is_vegan"),
+                "is_gluten_free": r.get("is_gluten_free"), "is_dairy_free": r.get("is_dairy_free"),
+                "cuisines": r.get("cuisines"), "dish_types": r.get("dish_types"),
+                "diets": r.get("diets"), "ingredients": r.get("ingredients"), "instructions": r.get("instructions")
             })
 
-        print("[4/4] Generating conversational explanation...")
-        
-        # Create a tiny summary of the found meals to save LLM tokens
-        recipe_context = "\n".join([
-            f"- {r['dish_name']} ({r['calories']} kcal, Protein: {r['protein_g']}g, Vegan: {r['is_vegan']})" 
-            for r in formatted_recipes
-        ])
+        # Final Greeting Context
+        recipe_context = "\n".join([f"- {r['dish_name']} ({r['calories']} kcal, Protein: {r['protein_g']}g)" for r in formatted_recipes])
         
         chat_prompt = PromptTemplate(
-            template="""You are Opticart, a highly empathetic and knowledgeable culinary AI assistant.
-            The user asked: "{user_query}"
-            
-            Based on their request, my database retrieved these specific meals:
-            {recipe_context}
-            
-            Write a warm, human-like response (1-2 short paragraphs). 
-            Acknowledge the user's specific context (e.g., their fitness goals, ailment, or craving). 
-            Explain broadly WHY these selected meals are a great fit for their specific needs based on their nutritional or dietary profiles. 
-            
-            CRITICAL: Do NOT list the recipes out individually with bullet points (the UI will display them as cards below your text). Just speak to the user naturally like a friendly nutritionist handing them a curated menu.
+            template="""You are Opticart. The user asked: "{user_query}"
+            I retrieved these meals: {recipe_context}
+            Write a brief 1-sentence intro acknowledging their request, then a short bulleted list mentioning how these specific meals fit their criteria. Do NOT use markdown asterisks (**).
             """,
             input_variables=["user_query", "recipe_context"]
         )
         
-        chat_chain = chat_prompt | llm
-        
         try:
-            # Generate the conversational text
-            ai_response = chat_chain.invoke({
-                "user_query": user_query,
-                "recipe_context": recipe_context
-            })
+            chat_chain = chat_prompt | llm
+            ai_response = chat_chain.invoke({"user_query": user_query, "recipe_context": recipe_context})
             conversational_text = ai_response.content
-        except Exception as e:
-            print(f"Chat generation failed: {e}")
+        except Exception:
             conversational_text = "Here are some great options I found for you based on your request:"
 
-        # Return BOTH the conversational text AND the raw grid data!
         return {
             "type": "recipe_grid", 
             "text": conversational_text, 
-            "recipes": formatted_recipes
-        }
-            
-        return {
-            "type": "recipe_grid",
-            "text": conversational_text,
             "recipes": formatted_recipes
         }
 

@@ -35,7 +35,7 @@ const Typewriter = ({ text, onComplete }) => {
 
 
 // AI response typing + Meal Card Fade-in
-const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices, onToggleSave, savedMealIds }) => {
+const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices, onToggleSave, savedMealIds, isLoading }) => {
   // Only declare this ONCE
   const [isTypingComplete, setIsTypingComplete] = useState(!msg.content);
 
@@ -97,7 +97,12 @@ const RecipeGridMessage = ({ msg, onSelectRecipe, onComparePrices, onToggleSave,
                     
                     <button 
                       onClick={() => onComparePrices(recipe)}
-                      className="w-full bg-transparent border-2 border-temporary-turqoise text-temporary-turqoise py-2.5 rounded-lg font-bold hover:bg-temporary-turqoise hover:text-white transition-all text-sm"
+                      disabled={isLoading} // Disables the button when scraping/chatting is active
+                      className={`w-full border-2 py-2.5 rounded-lg font-bold transition-all text-sm ${
+                        isLoading 
+                          ? 'bg-transparent border-gray-600 text-gray-500 cursor-not-allowed' 
+                          : 'bg-transparent border-temporary-turqoise text-temporary-turqoise hover:bg-temporary-turqoise hover:text-white'
+                      }`}
                     >
                       Compare Prices
                     </button>
@@ -292,15 +297,36 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
     const queryToSend = input;
     // Clear input box
     setInput("");
-    // Disable prompt input box and prompt submit button whilst current prompt is being processed 
+    // Disable prompt input box and submit button whilst processing 
     setIsLoading(true);
+
+    // Memory format
+    const formattedHistory = messages.map(msg => {
+      if (msg.sender === 'user') {
+          return { role: 'user', content: msg.content };
+      } else {
+          // If it's the AI, we capture its text response
+          let aiContent = msg.content || "Here are some options:";
+          
+          // The Magic Trick: If the AI showed a recipe grid, we append a hidden note 
+          // so the backend remembers exactly WHICH meals were on the screen!
+          if (msg.type === 'recipe_grid' && msg.recipes) {
+              const recipeNames = msg.recipes.map(r => r.dish_name).join(", ");
+              aiContent += `\n[SYSTEM CONTEXT: I showed the user these meals: ${recipeNames}]`;
+          }
+          return { role: 'ai', content: aiContent };
+      }
+    });
 
     try {
       // Send input to FastAPI "/chat" endpoint (Port 8000)
       const response = await fetch(`${import.meta.env.VITE_API_URL}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: queryToSend })
+        body: JSON.stringify({ 
+            query: queryToSend,
+            history: formattedHistory // <-- We are now sending the memory!
+        })
       });
 
       if (!response.ok) throw new Error("Backend connection failed");
@@ -325,13 +351,13 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
             ingredients: data.ingredients 
           }]);
       } else {
-          // Fallback if backend sends a generic error
-          setMessages(prev => [...prev, { sender: 'ai', type: 'text', content: data.error || "I couldn't understand that." }]);
+          // Renders the AI's conversational text OR an error if it crashed
+          setMessages(prev => [...prev, { sender: 'ai', type: 'text', content: data.text || data.error || "I couldn't understand that." }]);
       }
 
     } catch (error) {
       console.error("Error:", error);
-      setMessages(prev => [...prev, { sender: 'ai', type: 'text', content: "Error: Is your Python backend running? (Check terminal)" }]);
+      setMessages(prev => [...prev, { sender: 'ai', type: 'text', content: "ALERT: You have reached your prompting limitation or the prototype is failing to reach the backend service. Please let the researcher of this project know that you cannot submit any prompts at the moment." }]);
     } finally {
       setIsLoading(false);
     }
@@ -385,6 +411,7 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
                       onComparePrices={handleComparePrices}
                       onToggleSave={handleToggleSave}
                       savedMealIds={savedMealIds}
+                      isLoading={isLoading}
                     />
                   )}
 
@@ -659,9 +686,14 @@ function ChatWindow({ recipeToCompare , clearRecipeToCompare}) {
               <div className="pt-4">
                 <button 
                   onClick={() => handleComparePrices(selectedRecipe)}
-                  className="w-full bg-temporary-turqoise text-white py-4 rounded-xl font-bold text-lg hover:opacity-90 transition-all font-montserrat shadow-lg"
+                  disabled={isLoading}
+                  className={`w-full py-4 rounded-xl font-bold text-lg transition-all font-montserrat shadow-lg ${
+                    isLoading 
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                      : 'bg-temporary-turqoise text-white hover:opacity-90'
+                  }`}
                 >
-                  Compare Supermarket Prices
+                  {isLoading ? 'Starting Scrapers...' : 'Compare Supermarket Prices'}
                 </button>
               </div>
               

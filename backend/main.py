@@ -38,8 +38,14 @@ app.add_middleware(
 )
 
 # DATA MODELS - Defines JSON payloads that React is allowed to send to
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
 class UserQuery(BaseModel):
     query: str
+    # We use a default empty list [] so if an older prompt is sent without history, it won't crash!
+    history: List[ChatMessage] = [] 
 
 class ScrapeRequest(BaseModel):
     # React sends a list of ingredients as part of scraping the prices for each one
@@ -87,26 +93,24 @@ def read_root():
 async def chat_endpoint(request: UserQuery):
     print(f"--- RECOMMENDATION REQUEST RECEIVED ---")
     print(f"Query: {request.query}")
+    print(f"Memory length received: {len(request.history)} past messages")
 
     # Running RAG Pipeline 
     try:
         loop = asyncio.get_event_loop()
 
-        # Calling get_recommendations() function
+        # Notice we are passing BOTH the query and the history to the pipeline now!
         response_data = await loop.run_in_executor(
             executor, 
             get_recommendations, 
-            request.query
+            request.query,
+            request.history 
         )
         
         # Check for errors in the middle of pipeline execution
         # (e.g., The database was empty, or the user asked a random question)
         if "error" in response_data:
-            # DO NOT raise HTTPException. 
-            # Return it directly so React can display the message beautifully!
-            return {
-                "error": "I couldn't find any meals in my database that match those exact criteria. Could we try searching for a different ingredient or diet type?"
-            }
+            return response_data
 
         return response_data
     
