@@ -27,7 +27,7 @@ function BrowseMeals({ onComparePrices }) {
             // 1. Fetch Recipes
             let query = supabase.from('recipes').select('*');
             if (filter !== 'All') {
-                query = query.ilike('dish_types', `%${filter.toLowerCase()}%`);
+                query = query.ilike('cuisines', `%${filter}%`); 
             }
             const from = page * 50;
             const to = from + 49;
@@ -83,15 +83,36 @@ function BrowseMeals({ onComparePrices }) {
             <div className="w-full max-w-7xl flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-700 pb-4 shrink-0">
                 <h1 className="text-4xl font-bold font-montserrat text-white">Browse <span className="text-temporary-turqoise">Meals</span></h1>
                 <div className="mt-4 md:mt-0 flex items-center gap-3">
-                    <label className="text-gray-400 font-manrope font-bold">Meal Type:</label>
+                    <label className="text-gray-400 font-manrope font-bold">Cuisine:</label>
                     <select value={filter} onChange={handleFilterChange} className="bg-gray-800 text-white border border-gray-600 rounded-lg p-2 font-manrope focus:outline-none focus:border-temporary-turqoise cursor-pointer">
-                        <option value="All">All Types</option>
-                        <option value="Breakfast">Breakfast</option>
-                        <option value="Lunch">Lunch</option>
-                        <option value="Dinner">Dinner</option>
-                        <option value="Snack">Snack</option>
-                        <option value="Side Dish">Side Dish</option>
-                        <option value="Soup">Soup</option>
+                        <option value="All">All Cuisines</option>
+                        <option value="African">African</option>
+                        <option value="American">American</option>
+                        <option value="Asian">Asian</option>
+                        <option value="Barbecue">Barbecue</option>
+                        <option value="bbq">BBQ</option>
+                        <option value="British">British</option>
+                        <option value="Cajun">Cajun</option>
+                        <option value="Chinese">Chinese</option>
+                        <option value="Creole">Creole</option>
+                        <option value="English">English</option>
+                        <option value="French">French</option>
+                        <option value="Greek">Greek</option>
+                        <option value="Indian">Indian</option>
+                        <option value="Irish">Irish</option>
+                        <option value="Italian">Italian</option>
+                        <option value="Japanese">Japanese</option>
+                        <option value="Korean">Korean</option>
+                        <option value="Latin American">Latin American</option>
+                        <option value="Mediterranean">Mediterranean</option>
+                        <option value="Mexican">Mexican</option>
+                        <option value="Middle Eastern">Middle Eastern</option>
+                        <option value="Scottish">Scottish</option>
+                        <option value="South American">South American</option>
+                        <option value="Southern">Southern</option>
+                        <option value="Spanish">Spanish</option>
+                        <option value="Thai">Thai</option>
+                        <option value="Vietnamese">Vietnamese</option>
                     </select>
                 </div>
             </div>

@@ -53,17 +53,23 @@ function SavedLists() {
     const handleQuantityChange = (ingredientIndex, newQuantity) => {
         if (!editingList || newQuantity < 1) return;
 
-        // Copy the current editing list
-        const updatedList = { ...editingList };
-        
-        // Update the specific item's quantity
-        updatedList.items[ingredientIndex].quantity = newQuantity;
+        // Create a fresh array and a fresh item object to avoid mutating original state
+        const updatedItems = editingList.items.map((item, index) => {
+            if (index === ingredientIndex) {
+                return { ...item, quantity: newQuantity }; // Copy the item and update its quantity
+            }
+            return item; // Leave other items untouched
+        });
 
         // Recalculate the total basket price based on new quantities
-        const newTotal = updatedList.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        updatedList.total_price = newTotal;
+        const newTotal = updatedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-        setEditingList(updatedList);
+        // Set the editing list with our new fresh data
+        setEditingList({
+            ...editingList,
+            items: updatedItems,
+            total_price: newTotal
+        });
     };
 
     // 4. Save Edited List back to Supabase
