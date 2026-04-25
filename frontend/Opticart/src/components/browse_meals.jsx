@@ -27,7 +27,7 @@ function BrowseMeals({ onComparePrices }) {
             // 1. Fetch Recipes
             let query = supabase.from('recipes').select('*');
             if (filter !== 'All') {
-                query = query.ilike('cuisines', `%${filter}%`); 
+                query = query.contains('cuisines', [filter]); 
             }
             const from = page * 50;
             const to = from + 49;
