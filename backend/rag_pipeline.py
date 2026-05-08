@@ -53,7 +53,7 @@ embeddings = OllamaEmbeddings(model="nomic-embed-text")
 print("--- RAG 4: Loading Google Gemini ---")
 llm = ChatGoogleGenerativeAI(
     #model="gemini-2.5-flash-lite", 
-    model="gemma-3-12b-it",
+    model="gemini-2.5-flash-lite",
     temperature=0
 )
 
@@ -304,7 +304,7 @@ def get_recommendations(user_query, history=None, limit=8):
             "match_recipes", 
             {
                 "query_embedding": query_vector,
-                "match_threshold": 0.60, 
+                "match_threshold": 0.45, 
                 "match_count": limit,
                 "req_vegetarian": analysis.is_vegetarian,
                 "req_vegan": analysis.is_vegan,
