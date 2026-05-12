@@ -8,8 +8,8 @@ from supabase.client import Client, create_client
 print("-> Importing langchain vectorstores")
 from langchain_community.vectorstores import SupabaseVectorStore
 
-print("-> Importing langchain ollama")
-from langchain_ollama import OllamaEmbeddings
+print("-> Importing langchain nomic")
+from langchain_nomic.embeddings import NomicEmbeddings
 
 print("-> Importing langchain google")
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -47,13 +47,21 @@ EMBEDDINGS MODEL: nomic-embed-text
 CHAT MODEL: gemini-2.5-flash
 TEMPORARY MODEL (20/04/2025 - 00:55): gemini-2.5-flash 
 """
-print("--- RAG 3: Loading Ollama Embeddings ---")
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+print("--- RAG 3: Initializing Cloud Embeddings ---")
+NOMIC_API_KEY = os.getenv("NOMIC_API_KEY")
+
+if not NOMIC_API_KEY:
+    raise ValueError("Missing NOMIC_API_KEY in .env file.")
+
+embeddings = NomicEmbeddings(
+    model="nomic-embed-text-v1.5", 
+    nomic_api_key=NOMIC_API_KEY
+)
 
 print("--- RAG 4: Loading Google Gemini ---")
 llm = ChatGoogleGenerativeAI(
     #model="gemini-2.5-flash-lite", 
-    model="gemini-2.5-flash-lite",
+    model="gemini-2.5-flash",
     temperature=0
 )
 

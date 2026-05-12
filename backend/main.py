@@ -1,4 +1,6 @@
 print("--- 1. Booting up main.py ---")
+import time
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -111,6 +113,30 @@ async def chat_endpoint(request: UserQuery):
         # (e.g., The database was empty, or the user asked a random question)
         if "error" in response_data:
             return response_data
+        
+        # --- TEMPORARY TESTING TELEMETRY ---
+        print("\n" + "="*60)
+        print(f"🧪 TEST PROMPT: {request.query}")
+        print("-" * 60)
+        
+        # Safely grab the text, whether you named it 'message', 'text', or 'response'
+        text_response = response_data.get('message', response_data.get('text', response_data.get('response', 'No text key found')))
+        print(f"💬 NATURAL LANGUAGE RESPONSE:\n{text_response}")
+        print("-" * 60)
+        
+        # Check for the PLURAL 'recipes' list
+        recipes_list = response_data.get('recipes', [])
+        has_recipes = "YES" if len(recipes_list) > 0 else "NO"
+        
+        print(f"📦 RECIPES RETURNED? : {has_recipes} (Found: {len(recipes_list)})")
+        
+        if recipes_list:
+             # Print the name of the very first recipe to prove it worked
+             first_recipe = recipes_list[0]
+             print(f"🍽️ FIRST MEAL NAME: {first_recipe.get('dish_name', 'Unknown')}")
+             
+        print("="*60 + "\n")
+        # -----------------------------------
 
         return response_data
     
@@ -131,18 +157,35 @@ async def scrape_endpoint(request: ScrapeRequest):
     try:
         loop = asyncio.get_event_loop()
         
-        """
-        Call process_all_ingredients() to return a JSON containing the scraped prices
-        for each ingredient from 4 supermarket retailer websites
-        """
+        # Start the latency timer
+        start_time = time.time()
+        
         response_data = await loop.run_in_executor(
             executor, 
             process_all_ingredients, 
             request.ingredients
         )
         
+        # Stop the latency timer
+        end_time = time.time()
+        latency = round(end_time - start_time, 2)
+        
         if "error" in response_data:
              raise HTTPException(status_code=500, detail=response_data["error"])
+
+        # --- TEMPORARY SCRAPER TELEMETRY ---
+        print("\n" + "="*70)
+        print(f"🕸️  TEST: WEB SCRAPER & CONCURRENT LATENCY PROFILING")
+        print("-" * 70)
+        print(f"🛒 INGREDIENTS REQUESTED: {request.ingredients}")
+        print(f"⏱️  EXECUTION LATENCY: {latency} seconds")
+        print("-" * 70)
+        print(f"📊 SCRAPED DATA PREVIEW (First 500 chars):")
+        # Pretty-print the JSON so it is easy to read, but truncate it so it doesn't flood the terminal
+        formatted_json = json.dumps(response_data, indent=2)
+        print(formatted_json[:500] + "\n... [Data Truncated]")
+        print("="*70 + "\n")
+        # -----------------------------------
 
         return response_data
     
