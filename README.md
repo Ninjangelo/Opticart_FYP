@@ -55,9 +55,9 @@ pip install -r requirements.txt
 Within the root of your ```backend``` folder, locate the ```.env.example```file and rename it to ```.env```.
 </br>
 </br>
-For those examining or grading my the artefact prototype, I have inserted the API keys and URLs within the zipped folder submission for the artefact submission point.
+For those examining or grading my the artefact prototype, I have inserted the API keys and URLs within the zipped folder submission for the artefact submission point within in a text file.
 
-For those publically trying out my project, please contact lagdameoangelo@gmail.com so that I can supervise you and give you the necessary API keys and connection credentials to the database accossiated to the artefact prototype.
+For those publically trying out my project, please contact lagdameoangelo@gmail.com so that I can supervise you and give you the necessary API keys and connection credentials to the database and APIs associated to the artefact prototype.
 
 ### <ins>Startup Backend Server</ins>
 Ensuring that your terminal is still pointing to the ```backend``` folder directory, run the following command:
@@ -82,21 +82,30 @@ npm install
 ```
 
 ### <ins>Environment Variables</ins>
+Ensuring that you are still in the ```front/Opticart``` folder directory, locate the ```.env.example``` file and rename it ```.env.local```.
+
+Similarly to the backend environment variables, for those examining the artefact prototype, I have provided the keys and URLs for the Supabase database within the zipped folder submission within a text file.
+
+For those publically trying out my project, please contact lagdameoangelo@gmail.com so that I can supervise you and give you the necessary keys and connection credentials to the database associated to the artefact prototype.
+
+### <ins>Startup Frontend Server</ins>
+Ensuring that your terminal is still pointing to the ```frontend/Opticart``` folder directory, run the following command:
+```
+npm run dev
+```
+To confirm the frontend server is running, you should see the terminal displaying the following:
+```
+> opticart@0.0.0 dev
+> vite
 
 
-### <ins>#. Server Startup</ins>
-- <ins>Local Server run Commands:</ins>
-  - <ins>Uvicorn:</ins>
-  - cd backend
-  - .\venv\Scripts\activate
-  - uvicorn main:app --reload
-  - <ins>React Application:</ins>
-  - cd frontend/Opticart
-  - npm run dev (for React Application)
+  VITE v7.3.2  ready in 2684 ms
 
-- <ins>Testing FastAPI Calls for retreiving Backend Responses</ins>
-  - <ins>Uvicorn:</ins>
-  - cd backend
-  - .\venv\Scripts\activate
-  - uvicorn main:app --reload
-  - Visit http://localhost:8000/docs
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+```
+
+Click on the highlighted link ```http://localhost:5173/``` on the terminal to access the web application.
+
+Please contact lagdameoangelo@gmail.com if any issues occur midway through.
